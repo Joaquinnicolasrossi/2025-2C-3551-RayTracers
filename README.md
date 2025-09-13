@@ -20,9 +20,8 @@ Los recursos usados se almacenan utilizando [Git LFS](https://git-lfs.github.com
 
 ## Integrantes
 
-TGC, Tgcito  |  Apellido, Nombre
------------- | -------------
-| <img src="https://github.com/tgc-utn/tgc-utn.github.io/blob/main/images/robotgc.png" height="500"> | <img src="https://github.com/tgc-utn/tgc-utn.github.io/blob/main/images/trofeotp.png" height="500"> |
+<img width="600" height="167" alt="image" src="https://github.com/user-attachments/assets/d4c328ab-bf7e-44da-81fd-7539c21e4e22" />
+
 
 ## Capturas
 
