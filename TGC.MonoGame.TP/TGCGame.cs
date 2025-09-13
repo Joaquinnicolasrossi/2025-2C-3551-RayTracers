@@ -18,11 +18,10 @@ public class TGCGame : Game
     public const string ContentFolderSounds = "Sounds/";
     public const string ContentFolderSpriteFonts = "SpriteFonts/";
     public const string ContentFolderTextures = "Textures/";
-    
-    private readonly GraphicsDeviceManager _graphics;
 
+    private readonly GraphicsDeviceManager _graphics;
     private Effect _effect;
-    private Model _model;
+    private Model _carModel;
     private Matrix _projection;
     private float _rotation;
     private SpriteBatch _spriteBatch;
@@ -58,9 +57,9 @@ public class TGCGame : Game
         // Apago el backface culling.
         // Esto se hace por un problema en el diseno del modelo del logo de la materia.
         // Una vez que empiecen su juego, esto no es mas necesario y lo pueden sacar.
-        var rasterizerState = new RasterizerState();
-        rasterizerState.CullMode = CullMode.None;
-        GraphicsDevice.RasterizerState = rasterizerState;
+        // var rasterizerState = new RasterizerState();
+        // rasterizerState.CullMode = CullMode.None;
+        // GraphicsDevice.RasterizerState = rasterizerState;
         // Seria hasta aca.
 
         // Configuramos nuestras matrices de la escena.
@@ -82,8 +81,7 @@ public class TGCGame : Game
         // Aca es donde deberiamos cargar todos los contenido necesarios antes de iniciar el juego.
         _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-        // Cargo el modelo del logo.
-        _model = Content.Load<Model>(ContentFolder3D + "tgc-logo/tgc-logo");
+        _carModel = Content.Load<Model>(ContentFolder3D + "RacingCarA/RacingCar");
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -91,7 +89,7 @@ public class TGCGame : Game
 
         // Asigno el efecto que cargue a cada parte del mesh.
         // Un modelo puede tener mas de 1 mesh internamente.
-        foreach (var mesh in _model.Meshes)
+        foreach (var mesh in _carModel.Meshes)
         {
             // Un mesh puede tener mas de 1 mesh part (cada 1 puede tener su propio efecto).
             foreach (var meshPart in mesh.MeshParts)
@@ -122,7 +120,7 @@ public class TGCGame : Game
         // Basado en el tiempo que paso se va generando una rotacion.
         _rotation += Convert.ToSingle(gameTime.ElapsedGameTime.TotalSeconds);
 
-        _world = Matrix.CreateRotationY(_rotation);
+        _world = Matrix.CreateScale(0.2f) * Matrix.CreateTranslation(new Vector3(0, 0, 0)) * Matrix.CreateRotationY(_rotation);
 
         base.Update(gameTime);
     }
@@ -139,9 +137,9 @@ public class TGCGame : Game
         // Para dibujar le modelo necesitamos pasarle informacion que el efecto esta esperando.
         _effect.Parameters["View"].SetValue(_view);
         _effect.Parameters["Projection"].SetValue(_projection);
-        _effect.Parameters["DiffuseColor"].SetValue(Color.DarkBlue.ToVector3());
+        _effect.Parameters["DiffuseColor"].SetValue(Color.Red.ToVector3());
 
-        foreach (var mesh in _model.Meshes)
+        foreach (var mesh in _carModel.Meshes)
         {
             _effect.Parameters["World"].SetValue(mesh.ParentBone.Transform * _world);
             mesh.Draw();
