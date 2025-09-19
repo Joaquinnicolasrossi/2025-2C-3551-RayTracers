@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using TGC.MonoGame.TP.Zero;
 
 namespace TGC.MonoGame.TP;
 
@@ -22,11 +23,11 @@ public class TGCGame : Game
     private readonly GraphicsDeviceManager _graphics;
     private Effect _effect;
     private Model _carModel;
-    private Matrix _projection;
-    private float _rotation;
+    private Camera _camera;
     private SpriteBatch _spriteBatch;
+    private Matrix _carWorld;
     private Matrix _view;
-    private Matrix _world;
+    private Matrix _projection;
 
     /// <summary>
     ///     Constructor del juego.
@@ -63,10 +64,9 @@ public class TGCGame : Game
         // Seria hasta aca.
 
         // Configuramos nuestras matrices de la escena.
-        _world = Matrix.Identity;
-        _view = Matrix.CreateLookAt(Vector3.UnitZ * 150, Vector3.Zero, Vector3.Up);
-        _projection =
-            Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, GraphicsDevice.Viewport.AspectRatio, 1, 250);
+        _carWorld = Matrix.Identity;
+        _view = Matrix.Identity;
+        _projection = Matrix.Identity;
 
         base.Initialize();
     }
@@ -82,6 +82,8 @@ public class TGCGame : Game
         _spriteBatch = new SpriteBatch(GraphicsDevice);
 
         _carModel = Content.Load<Model>(ContentFolder3D + "RacingCarA/RacingCar");
+
+        _camera = new Camera(GraphicsDevice.Viewport.AspectRatio, 650f, 350f, 50f);
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -117,10 +119,9 @@ public class TGCGame : Game
             Exit();
         }
 
-        // Basado en el tiempo que paso se va generando una rotacion.
-        _rotation += Convert.ToSingle(gameTime.ElapsedGameTime.TotalSeconds);
+        _carWorld = Matrix.CreateScale(0.1f) * Matrix.CreateTranslation(Vector3.Zero);
 
-        _world = Matrix.CreateScale(0.2f) * Matrix.CreateTranslation(new Vector3(0, 0, 0)) * Matrix.CreateRotationY(_rotation);
+        _camera.Update(_carWorld);
 
         base.Update(gameTime);
     }
@@ -135,13 +136,13 @@ public class TGCGame : Game
         GraphicsDevice.Clear(Color.Black);
 
         // Para dibujar le modelo necesitamos pasarle informacion que el efecto esta esperando.
-        _effect.Parameters["View"].SetValue(_view);
-        _effect.Parameters["Projection"].SetValue(_projection);
-        _effect.Parameters["DiffuseColor"].SetValue(Color.Red.ToVector3());
+        _effect.Parameters["View"].SetValue(_camera.View);
+        _effect.Parameters["Projection"].SetValue(_camera.Projection);
+        _effect.Parameters["DiffuseColor"].SetValue(Color.White.ToVector3());
 
         foreach (var mesh in _carModel.Meshes)
         {
-            _effect.Parameters["World"].SetValue(mesh.ParentBone.Transform * _world);
+            _effect.Parameters["World"].SetValue(mesh.ParentBone.Transform * _carWorld);
             mesh.Draw();
         }
     }
