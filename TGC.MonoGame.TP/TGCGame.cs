@@ -30,7 +30,16 @@ public class TGCGame : Game
     private Matrix _projection;
     private Vector3 _carPosition = Vector3.Zero;
     private float _carRotation = 0f;
-    
+
+    // Car's movement variables (need to be adjusted)
+    private float _carSpeed = 0f;
+    private const float MaxSpeed = 300f;
+    private const float Acceleration = 100f;
+    private const float BrakeDeceleration = 200f;
+    private const float TurnSpeed = 60f;
+    private const float DriftFactor = 0.95f; // 0 (no drift) > DriftFactor > 1 (no adhesion)
+    private Vector3 _carDirection = Vector3.Forward;
+
     /// <summary>
     /// Geometry to draw a floor
     /// </summary>
@@ -97,7 +106,7 @@ public class TGCGame : Game
 
         _carModel = Content.Load<Model>(ContentFolder3D + "RacingCarA/RacingCar");
 
-        _camera = new Camera(GraphicsDevice.Viewport.AspectRatio, 1000f, 350f, 50f);
+        _camera = new Camera(GraphicsDevice.Viewport.AspectRatio, 1500f, 800f, 50f);
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -127,35 +136,46 @@ public class TGCGame : Game
     protected override void Update(GameTime gameTime)
     {
         // Aca deberiamos poner toda la logica de actualizacion del juego.
+        var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        var keyboardState = Keyboard.GetState();
 
-        // Capturar Input teclado
-        if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+        // Capturing pressed keys
+        if (keyboardState.IsKeyDown(Keys.Escape))
         {
-            //Salgo del juego.
+            //Exit of the game
             Exit();
         }
 
-        if (Keyboard.GetState().IsKeyDown(Keys.W))
+        // Automatic acceleration
+        if (_carSpeed < MaxSpeed)
+            _carSpeed += Acceleration * deltaTime;
+        else
+            _carSpeed = MaxSpeed;
+
+        // Braking
+        if (keyboardState.IsKeyDown(Keys.S))
         {
-            _carPosition -= _carWorld.Forward * 20f;
+            _carSpeed -= BrakeDeceleration * deltaTime;
+            if (_carSpeed < 0f) _carSpeed = 0f;
         }
-        
-        if (Keyboard.GetState().IsKeyDown(Keys.S))
-        {
-            _carPosition += _carWorld.Forward * 20f;
-        }
-        
-        if (Keyboard.GetState().IsKeyDown(Keys.A))
-        {
-            _carRotation += 2f;
-        }
-        
-        if (Keyboard.GetState().IsKeyDown(Keys.D))
-        {
-            _carRotation -= 2f;
-        }
-        
-        _carWorld = Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation)) * Matrix.CreateScale(0.1f) 
+
+        // Rotation
+        float turn = 0f;
+        if (keyboardState.IsKeyDown(Keys.A))
+            turn += TurnSpeed * deltaTime;
+        if (keyboardState.IsKeyDown(Keys.D))
+            turn -= TurnSpeed * deltaTime;
+
+        _carRotation += turn;
+
+        // Drift effect
+        var desiredDirection = Vector3.Transform(Vector3.Forward, Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation)));
+        _carDirection = Vector3.Normalize(_carDirection * DriftFactor + desiredDirection * (1f - DriftFactor));
+
+        // Moving the car
+        _carPosition -= _carDirection * _carSpeed * deltaTime;
+
+        _carWorld = Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation)) * Matrix.CreateScale(0.1f)
                     * Matrix.CreateTranslation(_carPosition);
 
         _camera.Update(_carWorld);
