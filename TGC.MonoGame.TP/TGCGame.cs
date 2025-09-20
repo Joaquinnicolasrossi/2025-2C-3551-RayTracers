@@ -28,6 +28,18 @@ public class TGCGame : Game
     private Matrix _carWorld;
     private Matrix _view;
     private Matrix _projection;
+    private Vector3 _carPosition = Vector3.Zero;
+    private float _carRotation = 0f;
+    
+    /// <summary>
+    /// Geometry to draw a floor
+    /// </summary>
+    private QuadPrimitive _floor;
+    
+    /// <summary>
+    /// The world matrix for the floor
+    /// </summary>
+    private Matrix _floorWorld;
 
     /// <summary>
     ///     Constructor del juego.
@@ -67,6 +79,8 @@ public class TGCGame : Game
         _carWorld = Matrix.Identity;
         _view = Matrix.Identity;
         _projection = Matrix.Identity;
+        
+        _floorWorld = Matrix.CreateScale(3000f) * Matrix.CreateTranslation(0f, 0f, 0f);
 
         base.Initialize();
     }
@@ -83,7 +97,7 @@ public class TGCGame : Game
 
         _carModel = Content.Load<Model>(ContentFolder3D + "RacingCarA/RacingCar");
 
-        _camera = new Camera(GraphicsDevice.Viewport.AspectRatio, 650f, 350f, 50f);
+        _camera = new Camera(GraphicsDevice.Viewport.AspectRatio, 1000f, 350f, 50f);
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -100,6 +114,8 @@ public class TGCGame : Game
             }
         }
 
+        _floor = new QuadPrimitive(GraphicsDevice);
+        
         base.LoadContent();
     }
 
@@ -119,7 +135,28 @@ public class TGCGame : Game
             Exit();
         }
 
-        _carWorld = Matrix.CreateScale(0.1f) * Matrix.CreateTranslation(Vector3.Zero);
+        if (Keyboard.GetState().IsKeyDown(Keys.W))
+        {
+            _carPosition -= _carWorld.Forward * 20f;
+        }
+        
+        if (Keyboard.GetState().IsKeyDown(Keys.S))
+        {
+            _carPosition += _carWorld.Forward * 20f;
+        }
+        
+        if (Keyboard.GetState().IsKeyDown(Keys.A))
+        {
+            _carRotation += 2f;
+        }
+        
+        if (Keyboard.GetState().IsKeyDown(Keys.D))
+        {
+            _carRotation -= 2f;
+        }
+        
+        _carWorld = Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation)) * Matrix.CreateScale(0.1f) 
+                    * Matrix.CreateTranslation(_carPosition);
 
         _camera.Update(_carWorld);
 
@@ -133,7 +170,9 @@ public class TGCGame : Game
     protected override void Draw(GameTime gameTime)
     {
         // Aca deberiamos poner toda la logia de renderizado del juego.
-        GraphicsDevice.Clear(Color.Black);
+        GraphicsDevice.Clear(Color.LightBlue);
+        
+        var viewProjection = _camera.View * _camera.Projection;
 
         // Para dibujar le modelo necesitamos pasarle informacion que el efecto esta esperando.
         _effect.Parameters["View"].SetValue(_camera.View);
@@ -143,8 +182,19 @@ public class TGCGame : Game
         foreach (var mesh in _carModel.Meshes)
         {
             _effect.Parameters["World"].SetValue(mesh.ParentBone.Transform * _carWorld);
+            _effect.Parameters["DiffuseColor"].SetValue(Color.Red.ToVector3());
             mesh.Draw();
         }
+        
+        // Draw the floor, pass the World, WorldViewProjection and InverseTransposeWorld matrices
+        _effect.Parameters["World"].SetValue(_floorWorld);
+        _effect.Parameters["View"].SetValue(_camera.View);
+        _effect.Parameters["Projection"].SetValue(_camera.Projection);
+        _effect.Parameters["DiffuseColor"].SetValue(Color.Green.ToVector3());
+        //_effect.Parameters["InverseTransposeWorld"].SetValue(Matrix.Invert(Matrix.Transpose(_floorWorld)));
+        //_effect.Parameters["WorldViewProjection"].SetValue(_floorWorld * viewProjection);
+
+        _floor.Draw(_effect);
     }
 
     /// <summary>
