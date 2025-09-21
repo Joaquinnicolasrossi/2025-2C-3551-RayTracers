@@ -25,7 +25,7 @@ public class TGCGame : Game
     private Camera _camera;
     private SpriteBatch _spriteBatch;
     private Matrix _carWorld;
-    private Vector3 _carPosition = Vector3.Zero;
+    private Vector3 _carPosition;
     private float _carRotation = 0f;
 
     // Car's movement variables (need to be adjusted)
@@ -107,6 +107,9 @@ public class TGCGame : Game
         _lineWidth = 10f;
 
         _roadWorld = Matrix.CreateScale(_roadWidth, 1f, _roadLength) * Matrix.CreateTranslation(new Vector3(0f, 0.02f, 0.00f)); // 0.02 para evitar z-fighting
+
+        // Inicializo el auto en el principio de la ruta mas un pequeño offset para que solo se vea el mapa
+        _carPosition = new Vector3(0f, 0f, -_roadLength + 100f);
 
         base.Initialize();
     }
