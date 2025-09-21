@@ -21,6 +21,8 @@ public class TGCGame : Game
 
     private readonly GraphicsDeviceManager _graphics;
     private Effect _basicShader;
+    private Effect _grassShader;
+    private Texture _grassTexture;
     private Model _carModel;
     private Camera _camera;
     private SpriteBatch _spriteBatch;
@@ -97,14 +99,14 @@ public class TGCGame : Game
         // Configuramos nuestras matrices de la escena.
         _carWorld = Matrix.Identity;
 
-        _floorWorld = Matrix.CreateScale(3000f) * Matrix.CreateTranslation(0f, 0.00f, 0f);
+        _floorWorld = Matrix.CreateScale(3000f) * Matrix.CreateTranslation(0f, 0f, 0f);
 
         // Configuro la ruta
         _roadLength = 3000f;
-        _roadWidth = 100f;
-        _lineSpacing = 200f;
-        _lineLength = 50f;
-        _lineWidth = 10f;
+        _roadWidth = 70f;
+        _lineSpacing = 100f;
+        _lineLength = 30f;
+        _lineWidth = 5f;
 
         _roadWorld = Matrix.CreateScale(_roadWidth, 1f, _roadLength) * Matrix.CreateTranslation(new Vector3(0f, 0.02f, 0.00f)); // 0.02 para evitar z-fighting
 
@@ -129,6 +131,8 @@ public class TGCGame : Game
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
         _basicShader = Content.Load<Effect>(ContentFolderEffects + "BasicShader");
+        _grassShader = Content.Load<Effect>(ContentFolderEffects + "GrassShader");
+        _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "grassTexture");
 
         // Asigno el efecto que cargue a cada parte del mesh.
         ModelDrawingHelper.AttachEffectToModel(_carModel, _basicShader);
@@ -214,11 +218,27 @@ public class TGCGame : Game
 
         ModelDrawingHelper.Draw(_carModel, _carWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
 
+        GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
         // Draw the floor
-        _basicShader.Parameters["World"].SetValue(_floorWorld);
-        _basicShader.Parameters["DiffuseColor"].SetValue(Color.Green.ToVector3());
-        _floor.Draw(_basicShader);
+        _grassShader.Parameters["View"].SetValue(_camera.View);
+        _grassShader.Parameters["Projection"].SetValue(_camera.Projection);
+        _grassShader.Parameters["World"].SetValue(_floorWorld);
+        _grassShader.Parameters["Time"].SetValue((float)gameTime.TotalGameTime.TotalSeconds);
+        
+        // tuning
+        _grassShader.Parameters["WindSpeed"].SetValue(1.0f);
+        _grassShader.Parameters["WindScale"].SetValue(0.12f);
+        _grassShader.Parameters["WindStrength"].SetValue(0.6f);
+        _grassShader.Parameters["Exposure"].SetValue(1.4f);
 
+        _grassShader.Parameters["Tiling"].SetValue(25f);          // cuantas repeticiones de la textura
+        _grassShader.Parameters["ScrollSpeed"].SetValue(0.02f);
+        _grassShader.Parameters["TextureInfluence"].SetValue(0.65f);
+        _grassShader.Parameters["GrassTexture"].SetValue(_grassTexture);
+        _floor.Draw(_grassShader);
+
+        
+        
         _basicShader.Parameters["World"].SetValue(_roadWorld);
         _basicShader.Parameters["DiffuseColor"].SetValue(Color.Black.ToVector3());
         _road.Draw(_basicShader);

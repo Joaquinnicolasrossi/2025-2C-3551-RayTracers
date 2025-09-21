@@ -19,7 +19,7 @@ namespace TGC.MonoGame.TP.Zero
                 MathHelper.ToRadians(60f),
                 aspectRatio,
                 1f,
-                1000f);
+                5000f);
             View = Matrix.Identity;
         }
 
