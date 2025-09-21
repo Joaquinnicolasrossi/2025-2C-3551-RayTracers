@@ -186,7 +186,7 @@ public class TGCGame : Game
         // Moving the car
         _carPosition -= _carDirection * _carSpeed * deltaTime;
 
-        _carWorld = Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation)) * Matrix.CreateScale(0.1f)
+        _carWorld = Matrix.CreateScale(0.1f) * Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation))
                     * Matrix.CreateTranslation(_carPosition);
         #endregion
 
