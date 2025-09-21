@@ -18,8 +18,8 @@ namespace TGC.MonoGame.TP.Zero
             Projection = Matrix.CreatePerspectiveFieldOfView(
                 MathHelper.ToRadians(60f),
                 aspectRatio,
-                0.1f,
-                100000f);
+                1f,
+                1000f);
             View = Matrix.Identity;
         }
 

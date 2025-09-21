@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using TGC.MonoGame.TP.Zero;
@@ -21,13 +20,11 @@ public class TGCGame : Game
     public const string ContentFolderTextures = "Textures/";
 
     private readonly GraphicsDeviceManager _graphics;
-    private Effect _effect;
+    private Effect _basicShader;
     private Model _carModel;
     private Camera _camera;
     private SpriteBatch _spriteBatch;
     private Matrix _carWorld;
-    private Matrix _view;
-    private Matrix _projection;
     private Vector3 _carPosition = Vector3.Zero;
     private float _carRotation = 0f;
 
@@ -44,11 +41,21 @@ public class TGCGame : Game
     /// Geometry to draw a floor
     /// </summary>
     private QuadPrimitive _floor;
-    
+
     /// <summary>
     /// The world matrix for the floor
     /// </summary>
     private Matrix _floorWorld;
+
+    private QuadPrimitive _road;
+    private Matrix _roadWorld;
+    private float _roadLength;
+    private float _roadWidth;
+    private QuadPrimitive _line;
+    private Matrix _lineWorld;
+    private float _lineSpacing;
+    private float _lineLength;
+    private float _lineWidth;
 
     /// <summary>
     ///     Constructor del juego.
@@ -84,12 +91,22 @@ public class TGCGame : Game
         // GraphicsDevice.RasterizerState = rasterizerState;
         // Seria hasta aca.
 
+        // Inicializo la camara
+        _camera = new Camera(GraphicsDevice.Viewport.AspectRatio, 1500f, 800f, 50f);
+
         // Configuramos nuestras matrices de la escena.
         _carWorld = Matrix.Identity;
-        _view = Matrix.Identity;
-        _projection = Matrix.Identity;
-        
-        _floorWorld = Matrix.CreateScale(3000f) * Matrix.CreateTranslation(0f, 0f, 0f);
+
+        _floorWorld = Matrix.CreateScale(3000f) * Matrix.CreateTranslation(0f, 0.00f, 0f);
+
+        // Configuro la ruta
+        _roadLength = 3000f;
+        _roadWidth = 100f;
+        _lineSpacing = 200f;
+        _lineLength = 50f;
+        _lineWidth = 10f;
+
+        _roadWorld = Matrix.CreateScale(_roadWidth, 1f, _roadLength) * Matrix.CreateTranslation(new Vector3(0f, 0.02f, 0.00f)); // 0.02 para evitar z-fighting
 
         base.Initialize();
     }
@@ -106,25 +123,18 @@ public class TGCGame : Game
 
         _carModel = Content.Load<Model>(ContentFolder3D + "RacingCarA/RacingCar");
 
-        _camera = new Camera(GraphicsDevice.Viewport.AspectRatio, 1500f, 800f, 50f);
-
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
-        _effect = Content.Load<Effect>(ContentFolderEffects + "BasicShader");
+        _basicShader = Content.Load<Effect>(ContentFolderEffects + "BasicShader");
 
         // Asigno el efecto que cargue a cada parte del mesh.
-        // Un modelo puede tener mas de 1 mesh internamente.
-        foreach (var mesh in _carModel.Meshes)
-        {
-            // Un mesh puede tener mas de 1 mesh part (cada 1 puede tener su propio efecto).
-            foreach (var meshPart in mesh.MeshParts)
-            {
-                meshPart.Effect = _effect;
-            }
-        }
+        ModelDrawingHelper.AttachEffectToModel(_carModel, _basicShader);
 
         _floor = new QuadPrimitive(GraphicsDevice);
-        
+
+        _road = new QuadPrimitive(GraphicsDevice);
+        _line = new QuadPrimitive(GraphicsDevice);
+
         base.LoadContent();
     }
 
@@ -146,6 +156,7 @@ public class TGCGame : Game
             Exit();
         }
 
+        #region Movimiento del auto
         // Automatic acceleration
         if (_carSpeed < MaxSpeed)
             _carSpeed += Acceleration * deltaTime;
@@ -177,6 +188,7 @@ public class TGCGame : Game
 
         _carWorld = Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation)) * Matrix.CreateScale(0.1f)
                     * Matrix.CreateTranslation(_carPosition);
+        #endregion
 
         _camera.Update(_carWorld);
 
@@ -191,30 +203,33 @@ public class TGCGame : Game
     {
         // Aca deberiamos poner toda la logia de renderizado del juego.
         GraphicsDevice.Clear(Color.LightBlue);
-        
-        var viewProjection = _camera.View * _camera.Projection;
 
         // Para dibujar le modelo necesitamos pasarle informacion que el efecto esta esperando.
-        _effect.Parameters["View"].SetValue(_camera.View);
-        _effect.Parameters["Projection"].SetValue(_camera.Projection);
-        _effect.Parameters["DiffuseColor"].SetValue(Color.White.ToVector3());
+        //! NOTA: SOLO HACE FALTA DEFINIR VIEW Y PROJECTION UNA VEZ
+        _basicShader.Parameters["View"].SetValue(_camera.View);
+        _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
 
-        foreach (var mesh in _carModel.Meshes)
+        ModelDrawingHelper.Draw(_carModel, _carWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
+
+        // Draw the floor
+        _basicShader.Parameters["World"].SetValue(_floorWorld);
+        _basicShader.Parameters["DiffuseColor"].SetValue(Color.Green.ToVector3());
+        _floor.Draw(_basicShader);
+
+        _basicShader.Parameters["World"].SetValue(_roadWorld);
+        _basicShader.Parameters["DiffuseColor"].SetValue(Color.Black.ToVector3());
+        _road.Draw(_basicShader);
+
+        for (float z = -_roadLength + _lineSpacing; z < _roadLength; z += _lineSpacing)
         {
-            _effect.Parameters["World"].SetValue(mesh.ParentBone.Transform * _carWorld);
-            _effect.Parameters["DiffuseColor"].SetValue(Color.Red.ToVector3());
-            mesh.Draw();
-        }
-        
-        // Draw the floor, pass the World, WorldViewProjection and InverseTransposeWorld matrices
-        _effect.Parameters["World"].SetValue(_floorWorld);
-        _effect.Parameters["View"].SetValue(_camera.View);
-        _effect.Parameters["Projection"].SetValue(_camera.Projection);
-        _effect.Parameters["DiffuseColor"].SetValue(Color.Green.ToVector3());
-        //_effect.Parameters["InverseTransposeWorld"].SetValue(Matrix.Invert(Matrix.Transpose(_floorWorld)));
-        //_effect.Parameters["WorldViewProjection"].SetValue(_floorWorld * viewProjection);
+            _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 0.04f, z)); // 0.04 para evitar z-fighting
 
-        _floor.Draw(_effect);
+            _basicShader.Parameters["World"].SetValue(_lineWorld);
+            _basicShader.Parameters["DiffuseColor"].SetValue(Color.Yellow.ToVector3());
+            _line.Draw(_basicShader);
+        }
+
+        base.Draw(gameTime);
     }
 
     /// <summary>
