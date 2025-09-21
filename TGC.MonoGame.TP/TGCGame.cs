@@ -30,6 +30,8 @@ public class TGCGame : Game
     private Vector3 _carPosition;
     private float _carRotation = 0f;
 
+    private Model _treeModel;
+
     // Car's movement variables (need to be adjusted)
     private float _carSpeed = 0f;
     private const float MaxSpeed = 300f;
@@ -127,6 +129,7 @@ public class TGCGame : Game
         _spriteBatch = new SpriteBatch(GraphicsDevice);
 
         _carModel = Content.Load<Model>(ContentFolder3D + "RacingCarA/RacingCar");
+        _treeModel = Content.Load<Model>(ContentFolder3D + "Tree/Tree");
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -136,6 +139,7 @@ public class TGCGame : Game
 
         // Asigno el efecto que cargue a cada parte del mesh.
         ModelDrawingHelper.AttachEffectToModel(_carModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_treeModel, _basicShader);
 
         _floor = new QuadPrimitive(GraphicsDevice);
 
@@ -217,6 +221,25 @@ public class TGCGame : Game
         _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
 
         ModelDrawingHelper.Draw(_carModel, _carWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
+
+        // Dibujar múltiples árboles a ambos lados del camino
+        float treeSpacing = 200f; // Espaciado entre árboles
+        float treeDistance = 120f; // Distancia desde el centro del camino
+        
+        for (float z = -_roadLength + treeSpacing; z < _roadLength; z += treeSpacing)
+        {
+            // Árboles del lado derecho (X positivo)
+            Matrix rightTreeWorld = Matrix.CreateScale(20f + (z % 100) / 20f) * // Variación de tamaño de los árboles
+                                   Matrix.CreateRotationY(z * 0.01f) * // Rotación de los árboles
+                                   Matrix.CreateTranslation(new Vector3(treeDistance, 0f, z));
+            ModelDrawingHelper.Draw(_treeModel, rightTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+
+            // Árboles del lado izquierdo (X negativo)
+            Matrix leftTreeWorld = Matrix.CreateScale(15f + ((z + 50) % 100) / 15f) * // Variación de tamaño de los árboles
+                                  Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de los árboles
+                                  Matrix.CreateTranslation(new Vector3(-treeDistance, 0f, z + 100f)); // Offset para que no estén alineados los árboles
+            ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+        }
 
         GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
         // Draw the floor
