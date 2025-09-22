@@ -24,6 +24,7 @@ public class TGCGame : Game
     private Effect _grassShader;
     private Texture _grassTexture;
     private Model _carModel;
+    private Model _houseModel;
     private Camera _camera;
     private SpriteBatch _spriteBatch;
     private Matrix _carWorld;
@@ -130,6 +131,7 @@ public class TGCGame : Game
 
         _carModel = Content.Load<Model>(ContentFolder3D + "RacingCarA/RacingCar");
         _treeModel = Content.Load<Model>(ContentFolder3D + "Tree/Tree");
+        _houseModel = Content.Load<Model>(ContentFolder3D + "Houses/Cabin");
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -140,6 +142,7 @@ public class TGCGame : Game
         // Asigno el efecto que cargue a cada parte del mesh.
         ModelDrawingHelper.AttachEffectToModel(_carModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_treeModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_houseModel, _basicShader);
 
         _floor = new QuadPrimitive(GraphicsDevice);
 
@@ -259,8 +262,26 @@ public class TGCGame : Game
         _grassShader.Parameters["TextureInfluence"].SetValue(0.65f);
         _grassShader.Parameters["GrassTexture"].SetValue(_grassTexture);
         _floor.Draw(_grassShader);
-
         
+        Matrix[] houseWorlds =
+        {
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,-2500),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300, 0, -2000),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,-1500),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,0,-1000),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,-500),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,0,0),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,500),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,0,1000),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,1500),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,0,2000),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,2500)
+        };
+
+        foreach (var world in houseWorlds)
+        {
+            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
+        }
         
         _basicShader.Parameters["World"].SetValue(_roadWorld);
         _basicShader.Parameters["DiffuseColor"].SetValue(Color.Black.ToVector3());
