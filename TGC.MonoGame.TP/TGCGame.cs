@@ -39,6 +39,8 @@ public class TGCGame : Game
     private Model _treeModel;
     private Model _trackModel;
     List<Matrix> casasWorld = new List<Matrix>();
+    List<Matrix> piedrasWorld = new List<Matrix>();
+    List<Matrix> plantasWorld = new List<Matrix>();
 
     // Car's movement variables (need to be adjusted)
     private float _carSpeed = 0f;
@@ -144,7 +146,7 @@ public class TGCGame : Game
         _houseModel = Content.Load<Model>(ContentFolder3D + "Houses/Cabin");
         _trackModel =  Content.Load<Model>(ContentFolder3D + "Track/road");
         _plantModel = Content.Load<Model>(ContentFolder3D + "Plants/Plant1/Low Grass");
-        _rockModel = Content.Load<Model>(ContentFolder3D + "Rocks/Rock1/Rockfbx");
+        _rockModel = Content.Load<Model>(ContentFolder3D + "Rocks/Rock2/rock");
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -180,6 +182,36 @@ public class TGCGame : Game
 
                 casasWorld.Add(world);
             }
+            else
+            {
+                if (bone.Name.StartsWith("piedra"))
+                {
+                    Vector3 pos = bone.Transform.Translation;
+
+                    // Escala/rotación propia de la casa
+                    Matrix piedraBase = Matrix.CreateScale(40f);
+
+                    // Combinamos: casaBase * emptyTransform * trackWorld
+                    Matrix world = piedraBase * Matrix.CreateTranslation(pos) * trackWorld;
+
+                    piedrasWorld.Add(world);
+                }
+                else
+                {
+                    if (bone.Name.StartsWith("planta"))
+                    {
+                        Vector3 pos = bone.Transform.Translation;
+
+                        // Escala/rotación propia de la casa
+                        Matrix plantaBase = Matrix.CreateScale(0.6f);
+
+                        // Combinamos: casaBase * emptyTransform * trackWorld
+                        Matrix world = plantaBase * Matrix.CreateTranslation(pos) * trackWorld;
+
+                        plantasWorld.Add(world);
+                    }
+                }
+            } 
         }
 
         base.LoadContent();
@@ -277,7 +309,7 @@ public class TGCGame : Game
             ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
         }
 
-        // Dibujar múltiples plantas a ambos lados del camino
+       /* // Dibujar múltiples plantas a ambos lados del camino
         float plantSpacing = 5f; // Espaciado entre plantas
         float plantDistance = 70f; // Distancia desde el centro del camino
 
@@ -294,7 +326,7 @@ public class TGCGame : Game
                                   Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de las plantas
                                   Matrix.CreateTranslation(new Vector3(-plantDistance, 0f, z + 100f)); // Offset para que no estén alineadas las plantas
             ModelDrawingHelper.Draw(_plantModel, leftPlantWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
-        }
+        }*/
 
         GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
         // Draw the floor
@@ -332,15 +364,24 @@ public class TGCGame : Game
 
         foreach (var world in houseWorlds)
         {
-            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
+            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61,38,29,255), _basicShader);
         }
         
         // Dibujar casas en cada posición de empty
         foreach (var world in casasWorld)
         {
-            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
+            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61,38,29,255), _basicShader);
         }
         
+        foreach (var world in piedrasWorld)
+        {
+            ModelDrawingHelper.Draw(_rockModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
+        }
+        
+        foreach (var world in plantasWorld)
+        {
+            ModelDrawingHelper.Draw(_plantModel, world, _camera.View, _camera.Projection, Color.Green, _basicShader);
+        }
         
         _basicShader.Parameters["World"].SetValue(_roadWorld);
         _basicShader.Parameters["DiffuseColor"].SetValue(Color.Black.ToVector3());
