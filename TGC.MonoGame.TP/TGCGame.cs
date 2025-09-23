@@ -203,7 +203,7 @@ public class TGCGame : Game
                         Vector3 pos = bone.Transform.Translation;
 
                         // Escala/rotación propia de la casa
-                        Matrix plantaBase = Matrix.CreateScale(0.6f);
+                        Matrix plantaBase = Matrix.CreateScale(5f);
 
                         // Combinamos: casaBase * emptyTransform * trackWorld
                         Matrix world = plantaBase * Matrix.CreateTranslation(pos) * trackWorld;
