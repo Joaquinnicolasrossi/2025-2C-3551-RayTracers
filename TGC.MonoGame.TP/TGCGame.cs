@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System.Collections.Generic;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using TGC.MonoGame.TP.Zero;
@@ -30,9 +31,11 @@ public class TGCGame : Game
     private Matrix _carWorld;
     private Vector3 _carPosition;
     private float _carRotation = 0f;
+    private Matrix trackWorld;
 
     private Model _treeModel;
     private Model _trackModel;
+    List<Matrix> casasWorld = new List<Matrix>();
 
     // Car's movement variables (need to be adjusted)
     private float _carSpeed = 0f;
@@ -103,7 +106,7 @@ public class TGCGame : Game
         // Configuramos nuestras matrices de la escena.
         _carWorld = Matrix.Identity;
 
-        _floorWorld = Matrix.CreateScale(30000f) * Matrix.CreateTranslation(0f, 0f, 0f);
+        _floorWorld = Matrix.CreateScale(31000f) * Matrix.CreateTranslation(0f, 0f, 0f);
 
         // Configuro la ruta
         _roadLength = 3000f;
@@ -116,6 +119,9 @@ public class TGCGame : Game
 
         // Inicializo el auto en el principio de la ruta mas un pequeño offset para que solo se vea el mapa
         _carPosition = new Vector3(0f, 0f, -_roadLength + 100f);
+        
+        trackWorld = Matrix.CreateScale(0.66f) * Matrix.CreateRotationY(-MathHelper.PiOver2) 
+                                                      * Matrix.CreateTranslation(-455, 1f, 3200);
 
         base.Initialize();
     }
@@ -133,7 +139,7 @@ public class TGCGame : Game
         _carModel = Content.Load<Model>(ContentFolder3D + "RacingCarA/RacingCar");
         _treeModel = Content.Load<Model>(ContentFolder3D + "Tree/Tree");
         _houseModel = Content.Load<Model>(ContentFolder3D + "Houses/Cabin");
-        _trackModel =  Content.Load<Model>(ContentFolder3D + "Track/pista");
+        _trackModel =  Content.Load<Model>(ContentFolder3D + "Track/road");
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -151,6 +157,23 @@ public class TGCGame : Game
 
         _road = new QuadPrimitive(GraphicsDevice);
         _line = new QuadPrimitive(GraphicsDevice);
+        
+        foreach (ModelBone bone in _trackModel.Bones)
+        {
+            // Solo usar empties con nombre "Casa_..."
+            if (bone.Name.StartsWith("casa"))
+            {
+                Vector3 pos = bone.Transform.Translation;
+
+                // Escala/rotación propia de la casa
+                Matrix casaBase = Matrix.CreateScale(0.6f);
+
+                // Combinamos: casaBase * emptyTransform * trackWorld
+                Matrix world = casaBase * Matrix.CreateTranslation(pos) * trackWorld;
+
+                casasWorld.Add(world);
+            }
+        }
 
         base.LoadContent();
     }
@@ -286,6 +309,12 @@ public class TGCGame : Game
             ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
         }
         
+        // Dibujar casas en cada posición de empty
+        foreach (var world in casasWorld)
+        {
+            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
+        }
+        
         
         _basicShader.Parameters["World"].SetValue(_roadWorld);
         _basicShader.Parameters["DiffuseColor"].SetValue(Color.Black.ToVector3());
@@ -300,8 +329,7 @@ public class TGCGame : Game
             _line.Draw(_basicShader);
         }
         
-        Matrix trackWorld = Matrix.CreateScale(0.66f) * Matrix.CreateRotationY(-MathHelper.PiOver2) 
-                                                     * Matrix.CreateTranslation(-455, 1f, 3200);
+       
         ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, Color.Black, _basicShader);
 
         base.Draw(gameTime);
