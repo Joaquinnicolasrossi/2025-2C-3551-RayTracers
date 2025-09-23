@@ -32,6 +32,7 @@ public class TGCGame : Game
     private float _carRotation = 0f;
 
     private Model _treeModel;
+    private Model _trackModel;
 
     // Car's movement variables (need to be adjusted)
     private float _carSpeed = 0f;
@@ -102,7 +103,7 @@ public class TGCGame : Game
         // Configuramos nuestras matrices de la escena.
         _carWorld = Matrix.Identity;
 
-        _floorWorld = Matrix.CreateScale(3000f) * Matrix.CreateTranslation(0f, 0f, 0f);
+        _floorWorld = Matrix.CreateScale(30000f) * Matrix.CreateTranslation(0f, 0f, 0f);
 
         // Configuro la ruta
         _roadLength = 3000f;
@@ -111,7 +112,7 @@ public class TGCGame : Game
         _lineLength = 30f;
         _lineWidth = 5f;
 
-        _roadWorld = Matrix.CreateScale(_roadWidth, 1f, _roadLength) * Matrix.CreateTranslation(new Vector3(0f, 0.02f, 0.00f)); // 0.02 para evitar z-fighting
+        _roadWorld = Matrix.CreateScale(_roadWidth, 1f, _roadLength) * Matrix.CreateTranslation(new Vector3(0f, 0.5f, 0.00f)); // 0.02 para evitar z-fighting
 
         // Inicializo el auto en el principio de la ruta mas un pequeño offset para que solo se vea el mapa
         _carPosition = new Vector3(0f, 0f, -_roadLength + 100f);
@@ -132,6 +133,7 @@ public class TGCGame : Game
         _carModel = Content.Load<Model>(ContentFolder3D + "RacingCarA/RacingCar");
         _treeModel = Content.Load<Model>(ContentFolder3D + "Tree/Tree");
         _houseModel = Content.Load<Model>(ContentFolder3D + "Houses/Cabin");
+        _trackModel =  Content.Load<Model>(ContentFolder3D + "Track/pista");
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -143,6 +145,7 @@ public class TGCGame : Game
         ModelDrawingHelper.AttachEffectToModel(_carModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_treeModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_houseModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_trackModel, _basicShader);
 
         _floor = new QuadPrimitive(GraphicsDevice);
 
@@ -257,7 +260,7 @@ public class TGCGame : Game
         _grassShader.Parameters["WindStrength"].SetValue(0.6f);
         _grassShader.Parameters["Exposure"].SetValue(1.4f);
 
-        _grassShader.Parameters["Tiling"].SetValue(25f);          // cuantas repeticiones de la textura
+        _grassShader.Parameters["Tiling"].SetValue(200f);          // cuantas repeticiones de la textura
         _grassShader.Parameters["ScrollSpeed"].SetValue(0.02f);
         _grassShader.Parameters["TextureInfluence"].SetValue(0.65f);
         _grassShader.Parameters["GrassTexture"].SetValue(_grassTexture);
@@ -283,18 +286,23 @@ public class TGCGame : Game
             ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
         }
         
+        
         _basicShader.Parameters["World"].SetValue(_roadWorld);
         _basicShader.Parameters["DiffuseColor"].SetValue(Color.Black.ToVector3());
         _road.Draw(_basicShader);
-
+        
         for (float z = -_roadLength + _lineSpacing; z < _roadLength; z += _lineSpacing)
         {
-            _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 0.04f, z)); // 0.04 para evitar z-fighting
+            _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 1f, z)); // 0.04 para evitar z-fighting
 
             _basicShader.Parameters["World"].SetValue(_lineWorld);
             _basicShader.Parameters["DiffuseColor"].SetValue(Color.Yellow.ToVector3());
             _line.Draw(_basicShader);
         }
+        
+        Matrix trackWorld = Matrix.CreateScale(0.66f) * Matrix.CreateRotationY(-MathHelper.PiOver2) 
+                                                     * Matrix.CreateTranslation(-455, 1f, 3200);
+        ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, Color.Black, _basicShader);
 
         base.Draw(gameTime);
     }
