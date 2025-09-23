@@ -33,6 +33,9 @@ public class TGCGame : Game
     private float _carRotation = 0f;
     private Matrix trackWorld;
 
+
+    private Model _plantModel;
+    private Model _rockModel;
     private Model _treeModel;
     private Model _trackModel;
     List<Matrix> casasWorld = new List<Matrix>();
@@ -136,10 +139,12 @@ public class TGCGame : Game
         // Aca es donde deberiamos cargar todos los contenido necesarios antes de iniciar el juego.
         _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-        _carModel = Content.Load<Model>(ContentFolder3D + "RacingCarA/RacingCar");
+        _carModel = Content.Load<Model>(ContentFolder3D + "Cars/RacingCarA/RacingCar");
         _treeModel = Content.Load<Model>(ContentFolder3D + "Tree/Tree");
         _houseModel = Content.Load<Model>(ContentFolder3D + "Houses/Cabin");
         _trackModel =  Content.Load<Model>(ContentFolder3D + "Track/road");
+        _plantModel = Content.Load<Model>(ContentFolder3D + "Plants/Plant1/Low Grass");
+        _rockModel = Content.Load<Model>(ContentFolder3D + "Rocks/Rock1/Rockfbx");
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -152,6 +157,8 @@ public class TGCGame : Game
         ModelDrawingHelper.AttachEffectToModel(_treeModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_houseModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_trackModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_plantModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_rockModel, _basicShader);
 
         _floor = new QuadPrimitive(GraphicsDevice);
 
@@ -268,6 +275,25 @@ public class TGCGame : Game
                                   Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de los árboles
                                   Matrix.CreateTranslation(new Vector3(-treeDistance, 0f, z + 100f)); // Offset para que no estén alineados los árboles
             ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+        }
+
+        // Dibujar múltiples plantas a ambos lados del camino
+        float plantSpacing = 5f; // Espaciado entre plantas
+        float plantDistance = 70f; // Distancia desde el centro del camino
+
+        for (float z = -_roadLength + plantSpacing; z < _roadLength; z += plantSpacing)
+        {
+            // Plantas del lado derecho (X positivo)
+            Matrix rightPlantWorld = Matrix.CreateScale(2f + (z % 100) / 20f) * // Variación de tamaño de las plantas
+                                   Matrix.CreateRotationY(z * 0.01f) * // Rotación de las plantas
+                                   Matrix.CreateTranslation(new Vector3(plantDistance, 0f, z));
+            ModelDrawingHelper.Draw(_plantModel, rightPlantWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+
+            // Plantas del lado izquierdo (X negativo)
+            Matrix leftPlantWorld = Matrix.CreateScale(2f + ((z + 50) % 100) / 15f) * // Variación de tamaño de las plantas
+                                  Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de las plantas
+                                  Matrix.CreateTranslation(new Vector3(-plantDistance, 0f, z + 100f)); // Offset para que no estén alineadas las plantas
+            ModelDrawingHelper.Draw(_plantModel, leftPlantWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
         }
 
         GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
