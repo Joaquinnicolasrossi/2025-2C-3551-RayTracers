@@ -124,8 +124,8 @@ public class TGCGame : Game
 
         // Inicializo el auto en el principio de la ruta mas un pequeño offset para que solo se vea el mapa
         _carPosition = new Vector3(0f, 0f, -_roadLength + 100f);
-        
-        trackWorld = Matrix.CreateScale(0.66f) * Matrix.CreateRotationY(-MathHelper.PiOver2) 
+
+        trackWorld = Matrix.CreateScale(0.66f) * Matrix.CreateRotationY(-MathHelper.PiOver2)
                                                       * Matrix.CreateTranslation(-455, 1f, 3200);
 
         base.Initialize();
@@ -144,7 +144,7 @@ public class TGCGame : Game
         _carModel = Content.Load<Model>(ContentFolder3D + "Cars/RacingCarA/RacingCar");
         _treeModel = Content.Load<Model>(ContentFolder3D + "Tree/Tree");
         _houseModel = Content.Load<Model>(ContentFolder3D + "Houses/Cabin");
-        _trackModel =  Content.Load<Model>(ContentFolder3D + "Track/road");
+        _trackModel = Content.Load<Model>(ContentFolder3D + "Track/road");
         _plantModel = Content.Load<Model>(ContentFolder3D + "Plants/Plant1/Low Grass");
         _rockModel = Content.Load<Model>(ContentFolder3D + "Rocks/Rock2/rock");
 
@@ -166,7 +166,7 @@ public class TGCGame : Game
 
         _road = new QuadPrimitive(GraphicsDevice);
         _line = new QuadPrimitive(GraphicsDevice);
-        
+
         foreach (ModelBone bone in _trackModel.Bones)
         {
             // Solo usar empties con nombre "Casa_..."
@@ -211,7 +211,7 @@ public class TGCGame : Game
                         plantasWorld.Add(world);
                     }
                 }
-            } 
+            }
         }
 
         base.LoadContent();
@@ -243,7 +243,7 @@ public class TGCGame : Game
             _carSpeed = MaxSpeed;
 
         // Braking
-        if (keyboardState.IsKeyDown(Keys.S))
+        if (keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.Space))
         {
             _carSpeed -= BrakeDeceleration * deltaTime;
             if (_carSpeed < 0f) _carSpeed = 0f;
@@ -293,7 +293,7 @@ public class TGCGame : Game
         // Dibujar múltiples árboles a ambos lados del camino
         float treeSpacing = 200f; // Espaciado entre árboles
         float treeDistance = 120f; // Distancia desde el centro del camino
-        
+
         for (float z = -_roadLength + treeSpacing; z < _roadLength; z += treeSpacing)
         {
             // Árboles del lado derecho (X positivo)
@@ -309,24 +309,24 @@ public class TGCGame : Game
             ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
         }
 
-       /* // Dibujar múltiples plantas a ambos lados del camino
-        float plantSpacing = 5f; // Espaciado entre plantas
-        float plantDistance = 70f; // Distancia desde el centro del camino
+        /* // Dibujar múltiples plantas a ambos lados del camino
+         float plantSpacing = 5f; // Espaciado entre plantas
+         float plantDistance = 70f; // Distancia desde el centro del camino
 
-        for (float z = -_roadLength + plantSpacing; z < _roadLength; z += plantSpacing)
-        {
-            // Plantas del lado derecho (X positivo)
-            Matrix rightPlantWorld = Matrix.CreateScale(2f + (z % 100) / 20f) * // Variación de tamaño de las plantas
-                                   Matrix.CreateRotationY(z * 0.01f) * // Rotación de las plantas
-                                   Matrix.CreateTranslation(new Vector3(plantDistance, 0f, z));
-            ModelDrawingHelper.Draw(_plantModel, rightPlantWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+         for (float z = -_roadLength + plantSpacing; z < _roadLength; z += plantSpacing)
+         {
+             // Plantas del lado derecho (X positivo)
+             Matrix rightPlantWorld = Matrix.CreateScale(2f + (z % 100) / 20f) * // Variación de tamaño de las plantas
+                                    Matrix.CreateRotationY(z * 0.01f) * // Rotación de las plantas
+                                    Matrix.CreateTranslation(new Vector3(plantDistance, 0f, z));
+             ModelDrawingHelper.Draw(_plantModel, rightPlantWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
 
-            // Plantas del lado izquierdo (X negativo)
-            Matrix leftPlantWorld = Matrix.CreateScale(2f + ((z + 50) % 100) / 15f) * // Variación de tamaño de las plantas
-                                  Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de las plantas
-                                  Matrix.CreateTranslation(new Vector3(-plantDistance, 0f, z + 100f)); // Offset para que no estén alineadas las plantas
-            ModelDrawingHelper.Draw(_plantModel, leftPlantWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
-        }*/
+             // Plantas del lado izquierdo (X negativo)
+             Matrix leftPlantWorld = Matrix.CreateScale(2f + ((z + 50) % 100) / 15f) * // Variación de tamaño de las plantas
+                                   Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de las plantas
+                                   Matrix.CreateTranslation(new Vector3(-plantDistance, 0f, z + 100f)); // Offset para que no estén alineadas las plantas
+             ModelDrawingHelper.Draw(_plantModel, leftPlantWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+         }*/
 
         GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
         // Draw the floor
@@ -334,7 +334,7 @@ public class TGCGame : Game
         _grassShader.Parameters["Projection"].SetValue(_camera.Projection);
         _grassShader.Parameters["World"].SetValue(_floorWorld);
         _grassShader.Parameters["Time"].SetValue((float)gameTime.TotalGameTime.TotalSeconds);
-        
+
         // tuning
         _grassShader.Parameters["WindSpeed"].SetValue(1.0f);
         _grassShader.Parameters["WindScale"].SetValue(0.12f);
@@ -346,47 +346,47 @@ public class TGCGame : Game
         _grassShader.Parameters["TextureInfluence"].SetValue(0.65f);
         _grassShader.Parameters["GrassTexture"].SetValue(_grassTexture);
         _floor.Draw(_grassShader);
-        
+
         Matrix[] houseWorlds =
         {
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,-2500),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300, 0, -2000),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,-1500),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,0,-1000),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,-500),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,0,0),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,500),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,0,1000),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,1500),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,0,2000),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,0,2500)
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-2500),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300, 1.02f, -2000),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-1500),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,-1000),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-500),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,0),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,500),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,1000),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,1500),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,2000),
+            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,2500)
         };
 
         foreach (var world in houseWorlds)
         {
-            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61,38,29,255), _basicShader);
+            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _basicShader);
         }
-        
+
         // Dibujar casas en cada posición de empty
         foreach (var world in casasWorld)
         {
-            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61,38,29,255), _basicShader);
+            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _basicShader);
         }
-        
+
         foreach (var world in piedrasWorld)
         {
             ModelDrawingHelper.Draw(_rockModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
         }
-        
+
         foreach (var world in plantasWorld)
         {
             ModelDrawingHelper.Draw(_plantModel, world, _camera.View, _camera.Projection, Color.Green, _basicShader);
         }
-        
+
         _basicShader.Parameters["World"].SetValue(_roadWorld);
         _basicShader.Parameters["DiffuseColor"].SetValue(Color.Black.ToVector3());
         _road.Draw(_basicShader);
-        
+
         for (float z = -_roadLength + _lineSpacing; z < _roadLength; z += _lineSpacing)
         {
             _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 1f, z)); // 0.04 para evitar z-fighting
@@ -395,8 +395,8 @@ public class TGCGame : Game
             _basicShader.Parameters["DiffuseColor"].SetValue(Color.Yellow.ToVector3());
             _line.Draw(_basicShader);
         }
-        
-       
+
+
         ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, Color.Black, _basicShader);
 
         base.Draw(gameTime);
