@@ -11,7 +11,7 @@ namespace TGC.MonoGame.TP.Zero
         private const float MaxAngleDiff = 15f; // Angle threshold for semi-locked camera
         private Vector3 currentCamPos;
         private Vector3 currentLookAt;
-        private const float SmoothFactor = 0.1f; // Between 0 (no smoothing) and 1 (very smooth)
+        private const float SmoothFactor = 0.1f; // Between 0 (very smooth) and 1 (no smoothing)
 
         public Camera(float aspectRatio, float distanceBack, float heightOffset, float lookAhead)
         {
