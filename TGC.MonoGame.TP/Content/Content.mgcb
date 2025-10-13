@@ -216,23 +216,23 @@
 /build:Models/Cars/RacingCarA/RacingCar.fbx
 
 #begin Models/Collectables/Coin/Coin.fbx
-/importer:FbxImporter
-/processor:ModelProcessor
-/processorParam:ColorKeyColor=0,0,0,0
-/processorParam:ColorKeyEnabled=True
-/processorParam:DefaultEffect=BasicEffect
-/processorParam:GenerateMipmaps=True
-/processorParam:GenerateTangentFrames=False
-/processorParam:PremultiplyTextureAlpha=True
-/processorParam:PremultiplyVertexColors=True
-/processorParam:ResizeTexturesToPowerOfTwo=False
-/processorParam:RotationX=0
-/processorParam:RotationY=0
-/processorParam:RotationZ=0
-/processorParam:Scale=1
-/processorParam:SwapWindingOrder=False
-/processorParam:TextureFormat=Compressed
-/build:Models/Collectables/Coin/Coin.fbx;Models/Collectables/Coin/Coin
+#/importer:FbxImporter
+#/processor:ModelProcessor
+#/processorParam:ColorKeyColor=0,0,0,0
+#/processorParam:ColorKeyEnabled=True
+#/processorParam:DefaultEffect=BasicEffect
+#/processorParam:GenerateMipmaps=True
+#/processorParam:GenerateTangentFrames=False
+#/processorParam:PremultiplyTextureAlpha=True
+#/processorParam:PremultiplyVertexColors=True
+#/processorParam:ResizeTexturesToPowerOfTwo=False
+#/processorParam:RotationX=0
+#/processorParam:RotationY=0
+#/processorParam:RotationZ=0
+#/processorParam:Scale=1
+#/processorParam:SwapWindingOrder=False
+#/processorParam:TextureFormat=Compressed
+#/build:Models/Collectables/Coin/Coin.fbx;Models/Collectables/Coin/Coin
 
 #begin Models/Collectables/Gas/Gas.fbx
 /importer:FbxImporter
@@ -254,23 +254,23 @@
 /build:Models/Collectables/Gas/Gas.fbx;Models/Collectables/Gas/Gas
 
 #begin Models/Collectables/Wrench/Wrench.fbx
-/importer:FbxImporter
-/processor:ModelProcessor
-/processorParam:ColorKeyColor=0,0,0,0
-/processorParam:ColorKeyEnabled=True
-/processorParam:DefaultEffect=BasicEffect
-/processorParam:GenerateMipmaps=True
-/processorParam:GenerateTangentFrames=False
-/processorParam:PremultiplyTextureAlpha=True
-/processorParam:PremultiplyVertexColors=True
-/processorParam:ResizeTexturesToPowerOfTwo=False
-/processorParam:RotationX=0
-/processorParam:RotationY=0
-/processorParam:RotationZ=0
-/processorParam:Scale=1
-/processorParam:SwapWindingOrder=False
-/processorParam:TextureFormat=Compressed
-/build:Models/Collectables/Wrench/Wrench.fbx;Models/Collectables/Wrench/Wrench
+#/importer:FbxImporter
+#/processor:ModelProcessor
+#/processorParam:ColorKeyColor=0,0,0,0
+#/processorParam:ColorKeyEnabled=True
+#/processorParam:DefaultEffect=BasicEffect
+#/processorParam:GenerateMipmaps=True
+#/processorParam:GenerateTangentFrames=False
+#/processorParam:PremultiplyTextureAlpha=True
+#/processorParam:PremultiplyVertexColors=True
+#/processorParam:ResizeTexturesToPowerOfTwo=False
+#/processorParam:RotationX=0
+#/processorParam:RotationY=0
+#/processorParam:RotationZ=0
+#/processorParam:Scale=1
+#/processorParam:SwapWindingOrder=False
+#/processorParam:TextureFormat=Compressed
+#/build:Models/Collectables/Wrench/Wrench.fbx;Models/Collectables/Wrench/Wrench
 
 #begin Models/Houses/Cabin.fbx
 /importer:FbxImporter
@@ -406,16 +406,16 @@
 /build:Models/Tree/Tree.fbx
 
 #begin Textures/Coin.png
-/importer:TextureImporter
-/processor:TextureProcessor
-/processorParam:ColorKeyColor=255,0,255,255
-/processorParam:ColorKeyEnabled=True
-/processorParam:GenerateMipmaps=False
-/processorParam:PremultiplyAlpha=True
-/processorParam:ResizeToPowerOfTwo=False
-/processorParam:MakeSquare=False
-/processorParam:TextureFormat=Color
-/build:Textures/Coin.png
+#/importer:TextureImporter
+#/processor:TextureProcessor
+#/processorParam:ColorKeyColor=255,0,255,255
+#/processorParam:ColorKeyEnabled=True
+#/processorParam:GenerateMipmaps=False
+#/processorParam:PremultiplyAlpha=True
+#/processorParam:ResizeToPowerOfTwo=False
+#/processorParam:MakeSquare=False
+#/processorParam:TextureFormat=Color
+#/build:Textures/Coin.png
 
 #begin Textures/grassTexture.jpg
 /importer:TextureImporter
@@ -430,14 +430,14 @@
 /build:Textures/grassTexture.jpg
 
 #begin Textures/WrentchBaseColor.png
-/importer:TextureImporter
-/processor:TextureProcessor
-/processorParam:ColorKeyColor=255,0,255,255
-/processorParam:ColorKeyEnabled=True
-/processorParam:GenerateMipmaps=False
-/processorParam:PremultiplyAlpha=True
-/processorParam:ResizeToPowerOfTwo=False
-/processorParam:MakeSquare=False
-/processorParam:TextureFormat=Color
-/build:Textures/WrentchBaseColor.png
+#/importer:TextureImporter
+#/processor:TextureProcessor
+#/processorParam:ColorKeyColor=255,0,255,255
+#/processorParam:ColorKeyEnabled=True
+#/processorParam:GenerateMipmaps=False
+#/processorParam:PremultiplyAlpha=True
+#/processorParam:ResizeToPowerOfTwo=False
+#/processorParam:MakeSquare=False
+#/processorParam:TextureFormat=Color
+#/build:Textures/WrentchBaseColor.png
 
