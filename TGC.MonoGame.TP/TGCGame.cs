@@ -113,7 +113,7 @@ public class TGCGame : Game
         // Seria hasta aca.
 
         // Inicializo la camara
-        _camera = new Camera(GraphicsDevice.Viewport.AspectRatio, 200f, 800f, 50f);
+        _camera = new Camera(GraphicsDevice.Viewport.AspectRatio, 150f, 700f, -30f);
 
         // Configuramos nuestras matrices de la escena.
         _carWorld = Matrix.Identity;
