@@ -42,6 +42,13 @@ public class TGCGame : Game
     List<Matrix> piedrasWorld = new List<Matrix>();
     List<Matrix> plantasWorld = new List<Matrix>();
 
+    private Model _gasModel;
+    private Model _wrenchModel;
+    private Model _coinModel;
+    private Matrix _collectableWorld;
+    private Texture _coinTexture;
+    private Texture _wrenchTexture;
+
     // Car's movement variables (need to be adjusted)
     private float _carSpeed = 0f;
     private const float MaxSpeed = 300f;
@@ -128,6 +135,8 @@ public class TGCGame : Game
         trackWorld = Matrix.CreateScale(0.66f) * Matrix.CreateRotationY(-MathHelper.PiOver2)
                                                       * Matrix.CreateTranslation(-455, 1f, 3200);
 
+        _collectableWorld = Matrix.CreateScale(2f) * Matrix.CreateTranslation(0f, 0f, -_roadLength + 100f);
+
         base.Initialize();
     }
 
@@ -147,12 +156,17 @@ public class TGCGame : Game
         _trackModel = Content.Load<Model>(ContentFolder3D + "Track/road");
         _plantModel = Content.Load<Model>(ContentFolder3D + "Plants/Plant1/Low Grass");
         _rockModel = Content.Load<Model>(ContentFolder3D + "Rocks/Rock2/rock");
+        _gasModel = Content.Load<Model>(ContentFolder3D + "Collectables/Gas/Gas");
+        _wrenchModel = Content.Load<Model>(ContentFolder3D + "Collectables/Wrench/Wrench");
+        _coinModel = Content.Load<Model>(ContentFolder3D + "Collectables/Coin/Coin");
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
         _basicShader = Content.Load<Effect>(ContentFolderEffects + "BasicShader");
         _grassShader = Content.Load<Effect>(ContentFolderEffects + "GrassShader");
         _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "grassTexture");
+        _coinTexture = Content.Load<Texture2D>(ContentFolderTextures + "Coin");
+        _wrenchTexture = Content.Load<Texture2D>(ContentFolderTextures + "WrentchBaseColor");
 
         // Asigno el efecto que cargue a cada parte del mesh.
         ModelDrawingHelper.AttachEffectToModel(_carModel, _basicShader);
@@ -161,6 +175,9 @@ public class TGCGame : Game
         ModelDrawingHelper.AttachEffectToModel(_trackModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_plantModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_rockModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_gasModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_wrenchModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_coinModel, _basicShader);
 
         _floor = new QuadPrimitive(GraphicsDevice);
 
@@ -398,6 +415,10 @@ public class TGCGame : Game
 
 
         ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, Color.Black, _basicShader);
+
+        ModelDrawingHelper.Draw(_coinModel, _collectableWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
+        ModelDrawingHelper.Draw(_gasModel, _collectableWorld, _camera.View, _camera.Projection, Color.Cyan, _basicShader);
+        ModelDrawingHelper.Draw(_wrenchModel, _collectableWorld, _camera.View, _camera.Projection, Color.White, _basicShader);
 
         base.Draw(gameTime);
     }
