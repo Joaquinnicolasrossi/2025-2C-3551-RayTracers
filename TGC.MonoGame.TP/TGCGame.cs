@@ -1,7 +1,8 @@
-﻿using System.Collections.Generic;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
+using System.Collections.Generic;
 using TGC.MonoGame.TP.Zero;
 
 namespace TGC.MonoGame.TP;
@@ -20,10 +21,18 @@ public class TGCGame : Game
     public const string ContentFolderSpriteFonts = "SpriteFonts/";
     public const string ContentFolderTextures = "Textures/";
 
+    public enum TerrainType
+    {
+        Asphalt = 0,
+        Dirt = 1,
+        Snow = 2
+    }
+
     private readonly GraphicsDeviceManager _graphics;
     private Effect _basicShader;
     private Effect _grassShader;
     private Texture _grassTexture;
+    private Texture2D _roadTexture;
     private Model _carModel;
     private Model _houseModel;
     private Camera _camera;
@@ -48,6 +57,9 @@ public class TGCGame : Game
     private Matrix _collectableWorld;
     //private Texture _coinTexture;
     //private Texture _wrenchTexture;
+
+    private TerrainType _currentTerrain;
+    private Random _random = new Random();
 
     // Car's movement variables (need to be adjusted)
     private float _carSpeed = 0f;
@@ -137,6 +149,8 @@ public class TGCGame : Game
 
         _collectableWorld = Matrix.CreateScale(2f) * Matrix.CreateTranslation(0f, 0f, -_roadLength + 100f);
 
+        _currentTerrain = (TerrainType)_random.Next(0, 3);
+
         base.Initialize();
     }
 
@@ -164,7 +178,26 @@ public class TGCGame : Game
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
         _basicShader = Content.Load<Effect>(ContentFolderEffects + "BasicShader");
         _grassShader = Content.Load<Effect>(ContentFolderEffects + "GrassShader");
-        _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "grassTexture");
+
+        switch (_currentTerrain)
+        {
+            case TerrainType.Asphalt:
+                // Load asphalt textures
+                _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Asphalt/OffRoad/grassTextureV2");
+                _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Asphalt/Road/asphaltColor");
+                break;
+            case TerrainType.Dirt:
+                // Load dirt textures
+                _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/OffRoad/grassTextureV2");
+                _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/Road/dirtTexture");
+                break;
+            case TerrainType.Snow:
+                // Load snow textures
+                _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/OffRoad/snowColor");
+                _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/Road/snowDirtColor");
+                break;
+        }
+
         //_coinTexture = Content.Load<Texture2D>(ContentFolderTextures + "Coin");
         //_wrenchTexture = Content.Load<Texture2D>(ContentFolderTextures + "WrentchBaseColor");
 
@@ -358,8 +391,8 @@ public class TGCGame : Game
         _grassShader.Parameters["WindStrength"].SetValue(0.6f);
         _grassShader.Parameters["Exposure"].SetValue(1.4f);
 
-        _grassShader.Parameters["Tiling"].SetValue(200f);          // cuantas repeticiones de la textura
-        _grassShader.Parameters["ScrollSpeed"].SetValue(0.02f);
+        _grassShader.Parameters["Tiling"].SetValue(1000f);          // cuantas repeticiones de la textura
+        _grassShader.Parameters["ScrollSpeed"].SetValue(0.0f); // if != 0, the texture will move
         _grassShader.Parameters["TextureInfluence"].SetValue(0.65f);
         _grassShader.Parameters["GrassTexture"].SetValue(_grassTexture);
         _floor.Draw(_grassShader);
@@ -401,7 +434,8 @@ public class TGCGame : Game
         }
 
         _basicShader.Parameters["World"].SetValue(_roadWorld);
-        _basicShader.Parameters["DiffuseColor"].SetValue(Color.Black.ToVector3());
+        _basicShader.Parameters["UseTexture"].SetValue(1f);
+        _basicShader.Parameters["MainTexture"].SetValue(_roadTexture);
         _road.Draw(_basicShader);
 
         for (float z = -_roadLength + _lineSpacing; z < _roadLength; z += _lineSpacing)
@@ -409,6 +443,7 @@ public class TGCGame : Game
             _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 1f, z)); // 0.04 para evitar z-fighting
 
             _basicShader.Parameters["World"].SetValue(_lineWorld);
+            _basicShader.Parameters["UseTexture"].SetValue(0f);
             _basicShader.Parameters["DiffuseColor"].SetValue(Color.Yellow.ToVector3());
             _line.Draw(_basicShader);
         }
