@@ -63,11 +63,11 @@ public class TGCGame : Game
 
     // Car's movement variables (need to be adjusted)
     private float _carSpeed = 0f;
-    private const float MaxSpeed = 300f;
-    private const float Acceleration = 100f;
-    private const float BrakeDeceleration = 200f;
+    private float MaxSpeed = 300f;
+    private float Acceleration = 100f;
+    private float BrakeDeceleration = 200f;
     private const float TurnSpeed = 60f;
-    private const float DriftFactor = 0.95f; // 0 (no drift) > DriftFactor > 1 (no adhesion)
+    private float DriftFactor = 0.95f; // 0 (no drift) > DriftFactor > 1 (no adhesion)
     private Vector3 _carDirection = Vector3.Forward;
 
     /// <summary>
@@ -185,16 +185,28 @@ public class TGCGame : Game
                 // Load asphalt textures
                 _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Asphalt/OffRoad/grassTextureV2");
                 _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Asphalt/Road/asphaltColor");
+                MaxSpeed = 300f;
+                Acceleration = 100f;
+                BrakeDeceleration = 250f;
+                DriftFactor = 0.6f;
                 break;
             case TerrainType.Dirt:
                 // Load dirt textures
                 _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/OffRoad/grassTextureV2");
                 _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/Road/dirtTexture");
+                MaxSpeed = 200f;
+                Acceleration = 80f;
+                BrakeDeceleration = 150f;
+                DriftFactor = 0.96f;
                 break;
             case TerrainType.Snow:
                 // Load snow textures
                 _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/OffRoad/snowColor");
                 _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/Road/snowDirtColor");
+                MaxSpeed = 180f;
+                Acceleration = 70f;
+                BrakeDeceleration = 100f;
+                DriftFactor = 0.97f;
                 break;
         }
 
