@@ -29,7 +29,23 @@ namespace TGC.MonoGame.TP
         {
             effect.Parameters["View"]?.SetValue(view);
             effect.Parameters["Projection"]?.SetValue(projection);
+            effect.Parameters["UseTexture"]?.SetValue(0);
             effect.Parameters["DiffuseColor"]?.SetValue(color.ToVector3());
+
+            foreach (var mesh in model.Meshes)
+            {
+                effect.Parameters["World"]?.SetValue(mesh.ParentBone.Transform * modelWorld);
+                mesh.Draw();
+            }
+        }
+
+        // Same method but for textures
+        public static void Draw(Model model, Matrix modelWorld, Matrix view, Matrix projection, Texture2D texture, Effect effect)
+        {
+            effect.Parameters["View"]?.SetValue(view);
+            effect.Parameters["Projection"]?.SetValue(projection);
+            effect.Parameters["UseTexture"]?.SetValue(1);
+            effect.Parameters["MainTexture"]?.SetValue(texture);
 
             foreach (var mesh in model.Meshes)
             {
