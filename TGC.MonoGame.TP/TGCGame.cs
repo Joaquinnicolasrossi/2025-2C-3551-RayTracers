@@ -43,6 +43,11 @@ public class TGCGame : Game
     private int _score = 0;
     private float _fuel = 100f; // El combustible empieza al máximo
     private int _wrenches = 0;
+    private SpriteFont _mainFont;
+    private Texture2D _coinIcon;
+    private Texture2D _wrenchIcon;
+    private Texture2D _gasIcon;
+    private Texture2D _pixelTexture;
     #endregion
 
     #region Circuito
@@ -183,6 +188,15 @@ public class TGCGame : Game
     {
         // Aca es donde deberiamos cargar todos los contenido necesarios antes de iniciar el juego.
         _spriteBatch = new SpriteBatch(GraphicsDevice);
+
+        #region HUD
+        _mainFont = Content.Load<SpriteFont>(ContentFolderSpriteFonts + "MainFont");
+        _coinIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/coin_icon");
+        _wrenchIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/wrench_icon");
+        _gasIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/gas_icon");
+        _pixelTexture = new Texture2D(GraphicsDevice, 1, 1);
+        _pixelTexture.SetData(new[] { Color.White });
+        #endregion
 
         _carModel = Content.Load<Model>(ContentFolder3D + "Cars/RacingCarA/RacingCar");
         _treeModel = Content.Load<Model>(ContentFolder3D + "Tree/Tree");
@@ -512,6 +526,64 @@ public class TGCGame : Game
                 }
             }
         }
+
+        #region Dibujado del HUD
+
+        _spriteBatch.Begin();
+
+        // --- Definiciones Generales para el HUD ---
+        var startX = 50;
+        var currentY = 50;
+        var textMargin = 10;
+        var elementSpacing = 40;
+        var iconSize = 40;
+        var textColor = Color.White;
+
+        // --- 1. Score (Puntaje) ---
+        var scoreIconPosition = new Vector2(startX, currentY);
+        _spriteBatch.Draw(_coinIcon, new Rectangle((int)scoreIconPosition.X, (int)scoreIconPosition.Y, iconSize, iconSize), Color.White);
+
+        var scoreTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Score:").Y) / 2);
+        _spriteBatch.DrawString(_mainFont, "Score: " + _score, scoreTextPosition, textColor);
+
+        currentY += elementSpacing;
+
+        // --- 2. Repairs (Llaves) ---
+        var wrenchIconPosition = new Vector2(startX, currentY);
+        _spriteBatch.Draw(_wrenchIcon, new Rectangle((int)wrenchIconPosition.X, (int)wrenchIconPosition.Y, iconSize, iconSize), Color.White);
+
+        var wrenchesTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Repairs:").Y) / 2);
+        _spriteBatch.DrawString(_mainFont, "Repairs: " + _wrenches, wrenchesTextPosition, textColor);
+
+        currentY += elementSpacing;
+
+        // --- 3. Fuel (Combustible) ---
+        var gasIconPosition = new Vector2(startX, currentY);
+        _spriteBatch.Draw(_gasIcon, new Rectangle((int)gasIconPosition.X, (int)gasIconPosition.Y, iconSize, iconSize), Color.White);
+
+        var fuelLabelTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Fuel").Y) / 2);
+        _spriteBatch.DrawString(_mainFont, "Fuel", fuelLabelTextPosition, textColor);
+
+        currentY += iconSize + 5;
+
+        // Lógica para la barra de combustible
+        var fuelBarPosition = new Vector2(startX, currentY);
+        var fuelBarWidth = 200;
+        var fuelBarHeight = 20;
+
+        var backgroundRect = new Rectangle((int)fuelBarPosition.X, (int)fuelBarPosition.Y, fuelBarWidth, fuelBarHeight);
+        var fuelRect = new Rectangle((int)fuelBarPosition.X, (int)fuelBarPosition.Y, (int)(fuelBarWidth * (_fuel / 100f)), fuelBarHeight);
+
+        // USAMOS LA TEXTURA PRE-CARGADA
+        _spriteBatch.Draw(_pixelTexture, backgroundRect, Color.DarkGray);
+        _spriteBatch.Draw(_pixelTexture, fuelRect, Color.Green);
+
+        _spriteBatch.End();
+
+        #endregion
+
+        // IMPORTANTE: Restaurar estados de renderizado que SpriteBatch modifica
+        GraphicsDevice.DepthStencilState = DepthStencilState.Default;
 
         base.Draw(gameTime);
     }

@@ -20,7 +20,7 @@ namespace TGC.MonoGame.TP
         // El radio de la esfera de colisión
         private const float CoinRadius = 3f;
         private const float GasRadius = 5f;
-        private const float WrenchRadius = 0.4f;
+        private const float WrenchRadius = 0.6f;
 
         // Variables para la animación de rotación
         private float _animationRotation;
