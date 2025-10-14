@@ -389,6 +389,8 @@ public class TGCGame : Game
 
                 _carWorld = Matrix.CreateScale(0.1f) * Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation))
                             * Matrix.CreateTranslation(_carPosition);
+
+                _carBoundingSphere.Center = _carPosition;
                 #endregion
 
                 #region Coleccionables
