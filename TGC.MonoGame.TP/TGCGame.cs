@@ -188,7 +188,7 @@ public class TGCGame : Game
                 MaxSpeed = 300f;
                 Acceleration = 100f;
                 BrakeDeceleration = 250f;
-                DriftFactor = 0.6f;
+                DriftFactor = 0.75f;
                 break;
             case TerrainType.Dirt:
                 // Load dirt textures
@@ -461,7 +461,7 @@ public class TGCGame : Game
         }
 
 
-        ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, Color.Black, _basicShader);
+        ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, _roadTexture, _basicShader);
 
         //ModelDrawingHelper.Draw(_coinModel, _collectableWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
         ModelDrawingHelper.Draw(_gasModel, _collectableWorld, _camera.View, _camera.Projection, Color.Cyan, _basicShader);
