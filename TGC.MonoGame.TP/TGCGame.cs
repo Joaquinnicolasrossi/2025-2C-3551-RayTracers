@@ -52,11 +52,10 @@ public class TGCGame : Game
     List<Matrix> plantasWorld = new List<Matrix>();
 
     private Model _gasModel;
-    //private Model _wrenchModel;
-    //private Model _coinModel;
-    private Matrix _collectableWorld;
-    //private Texture _coinTexture;
-    //private Texture _wrenchTexture;
+    private Model _wrenchModel;
+    private Model _coinModel;
+    private List<Vector3> _collectibleSpawnPoints = new List<Vector3>();
+    private List<Collectible> _collectibles = new List<Collectible>();
 
     private TerrainType _currentTerrain;
     private Random _random = new Random();
@@ -142,12 +141,10 @@ public class TGCGame : Game
         _roadWorld = Matrix.CreateScale(_roadWidth, 1f, _roadLength) * Matrix.CreateTranslation(new Vector3(0f, 0.5f, 0.00f)); // 0.02 para evitar z-fighting
 
         // Inicializo el auto en el principio de la ruta mas un pequeño offset para que solo se vea el mapa
-        _carPosition = new Vector3(0f, 0f, -_roadLength + 100f);
+        _carPosition = new Vector3(0f, 0f, _roadLength);
 
         trackWorld = Matrix.CreateScale(0.66f) * Matrix.CreateRotationY(-MathHelper.PiOver2)
                                                       * Matrix.CreateTranslation(-455, 1f, 3200);
-
-        _collectableWorld = Matrix.CreateScale(2f) * Matrix.CreateTranslation(0f, 0f, -_roadLength + 100f);
 
         _currentTerrain = (TerrainType)_random.Next(0, 3);
 
@@ -171,8 +168,8 @@ public class TGCGame : Game
         _plantModel = Content.Load<Model>(ContentFolder3D + "Plants/Plant1/Low Grass");
         _rockModel = Content.Load<Model>(ContentFolder3D + "Rocks/Rock2/rock");
         _gasModel = Content.Load<Model>(ContentFolder3D + "Collectables/Gas/Gas");
-        //_wrenchModel = Content.Load<Model>(ContentFolder3D + "Collectables/Wrench/Wrench");
-        //_coinModel = Content.Load<Model>(ContentFolder3D + "Collectables/Coin/Coin");
+        _wrenchModel = Content.Load<Model>(ContentFolder3D + "Collectables/Wrench/Wrench");
+        _coinModel = Content.Load<Model>(ContentFolder3D + "Collectables/Coin/Coin");
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -210,9 +207,6 @@ public class TGCGame : Game
                 break;
         }
 
-        //_coinTexture = Content.Load<Texture2D>(ContentFolderTextures + "Coin");
-        //_wrenchTexture = Content.Load<Texture2D>(ContentFolderTextures + "WrentchBaseColor");
-
         // Asigno el efecto que cargue a cada parte del mesh.
         ModelDrawingHelper.AttachEffectToModel(_carModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_treeModel, _basicShader);
@@ -221,59 +215,50 @@ public class TGCGame : Game
         ModelDrawingHelper.AttachEffectToModel(_plantModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_rockModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_gasModel, _basicShader);
-        //ModelDrawingHelper.AttachEffectToModel(_wrenchModel, _basicShader);
-        //ModelDrawingHelper.AttachEffectToModel(_coinModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_wrenchModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_coinModel, _basicShader);
 
         _floor = new QuadPrimitive(GraphicsDevice);
-
         _road = new QuadPrimitive(GraphicsDevice);
         _line = new QuadPrimitive(GraphicsDevice);
 
+        // Spawn de objetos segun el nombre de los empties de road.fbx
         foreach (ModelBone bone in _trackModel.Bones)
         {
-            // Solo usar empties con nombre "Casa_..."
             if (bone.Name.StartsWith("casa"))
             {
                 Vector3 pos = bone.Transform.Translation;
-
-                // Escala/rotación propia de la casa
                 Matrix casaBase = Matrix.CreateScale(0.6f);
-
-                // Combinamos: casaBase * emptyTransform * trackWorld
                 Matrix world = casaBase * Matrix.CreateTranslation(pos) * trackWorld;
-
                 casasWorld.Add(world);
             }
-            else
+            else if (bone.Name.StartsWith("piedra"))
             {
-                if (bone.Name.StartsWith("piedra"))
-                {
-                    Vector3 pos = bone.Transform.Translation;
-
-                    // Escala/rotación propia de la casa
-                    Matrix piedraBase = Matrix.CreateScale(40f);
-
-                    // Combinamos: casaBase * emptyTransform * trackWorld
-                    Matrix world = piedraBase * Matrix.CreateTranslation(pos) * trackWorld;
-
-                    piedrasWorld.Add(world);
-                }
-                else
-                {
-                    if (bone.Name.StartsWith("planta"))
-                    {
-                        Vector3 pos = bone.Transform.Translation;
-
-                        // Escala/rotación propia de la casa
-                        Matrix plantaBase = Matrix.CreateScale(5f);
-
-                        // Combinamos: casaBase * emptyTransform * trackWorld
-                        Matrix world = plantaBase * Matrix.CreateTranslation(pos) * trackWorld;
-
-                        plantasWorld.Add(world);
-                    }
-                }
+                Vector3 pos = bone.Transform.Translation;
+                Matrix piedraBase = Matrix.CreateScale(40f);
+                Matrix world = piedraBase * Matrix.CreateTranslation(pos) * trackWorld;
+                piedrasWorld.Add(world);
             }
+            else if (bone.Name.StartsWith("planta"))
+            {
+                Vector3 pos = bone.Transform.Translation;
+                Matrix plantaBase = Matrix.CreateScale(5f);
+                Matrix world = plantaBase * Matrix.CreateTranslation(pos) * trackWorld;
+                plantasWorld.Add(world);
+            }
+            else if (bone.Name.StartsWith("collectable"))
+            {
+                Vector3 spawnPosition = bone.Transform.Translation;
+                Vector3 worldSpawnPosition = Vector3.Transform(spawnPosition, trackWorld);
+                _collectibleSpawnPoints.Add(worldSpawnPosition);
+            }
+        }
+
+        // Creo collectibles en orden random
+        foreach (var spawnPoint in _collectibleSpawnPoints)
+        {
+            var randomType = (CollectibleType)_random.Next(0, 3); // 0=Coin, 1=Gas, 2=Wrench
+            _collectibles.Add(new Collectible(randomType, spawnPoint));
         }
 
         base.LoadContent();
@@ -333,6 +318,15 @@ public class TGCGame : Game
 
         _camera.Update(_carWorld, _carRotation);
 
+        // Animacion de los coleccionables
+        foreach (var collectible in _collectibles)
+        {
+            if (collectible.IsActive)
+            {
+                collectible.Update(gameTime);
+            }
+        }
+
         base.Update(gameTime);
     }
 
@@ -342,10 +336,10 @@ public class TGCGame : Game
     /// </summary>
     protected override void Draw(GameTime gameTime)
     {
-        // Aca deberiamos poner toda la logia de renderizado del juego.
+        var frustum = _camera.Frustum;
+
         GraphicsDevice.Clear(Color.LightBlue);
 
-        // Para dibujar le modelo necesitamos pasarle informacion que el efecto esta esperando.
         //! NOTA: SOLO HACE FALTA DEFINIR VIEW Y PROJECTION UNA VEZ
         _basicShader.Parameters["View"].SetValue(_camera.View);
         _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
@@ -370,25 +364,6 @@ public class TGCGame : Game
                                   Matrix.CreateTranslation(new Vector3(-treeDistance, 0f, z + 100f)); // Offset para que no estén alineados los árboles
             ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
         }
-
-        /* // Dibujar múltiples plantas a ambos lados del camino
-         float plantSpacing = 5f; // Espaciado entre plantas
-         float plantDistance = 70f; // Distancia desde el centro del camino
-
-         for (float z = -_roadLength + plantSpacing; z < _roadLength; z += plantSpacing)
-         {
-             // Plantas del lado derecho (X positivo)
-             Matrix rightPlantWorld = Matrix.CreateScale(2f + (z % 100) / 20f) * // Variación de tamaño de las plantas
-                                    Matrix.CreateRotationY(z * 0.01f) * // Rotación de las plantas
-                                    Matrix.CreateTranslation(new Vector3(plantDistance, 0f, z));
-             ModelDrawingHelper.Draw(_plantModel, rightPlantWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
-
-             // Plantas del lado izquierdo (X negativo)
-             Matrix leftPlantWorld = Matrix.CreateScale(2f + ((z + 50) % 100) / 15f) * // Variación de tamaño de las plantas
-                                   Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de las plantas
-                                   Matrix.CreateTranslation(new Vector3(-plantDistance, 0f, z + 100f)); // Offset para que no estén alineadas las plantas
-             ModelDrawingHelper.Draw(_plantModel, leftPlantWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
-         }*/
 
         GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
         // Draw the floor
@@ -463,9 +438,28 @@ public class TGCGame : Game
 
         ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, _roadTexture, _basicShader);
 
-        //ModelDrawingHelper.Draw(_coinModel, _collectableWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
-        ModelDrawingHelper.Draw(_gasModel, _collectableWorld, _camera.View, _camera.Projection, Color.Cyan, _basicShader);
-        //ModelDrawingHelper.Draw(_wrenchModel, _collectableWorld, _camera.View, _camera.Projection, Color.White, _basicShader);
+        foreach (var collectible in _collectibles)
+        {
+            // OPTIMIZACION PARA NO RENDERIZAR LO QUE NO SE ESTA VIENDO
+            if (!frustum.Intersects(collectible.BoundingSphere))
+                continue;
+
+            if (collectible.IsActive)
+            {
+                switch (collectible.Type)
+                {
+                    case CollectibleType.Coin:
+                        ModelDrawingHelper.Draw(_coinModel, collectible.World, _camera.View, _camera.Projection, Color.Gold, _basicShader);
+                        break;
+                    case CollectibleType.Gas:
+                        ModelDrawingHelper.Draw(_gasModel, collectible.World, _camera.View, _camera.Projection, Color.Red, _basicShader);
+                        break;
+                    case CollectibleType.Wrench:
+                        ModelDrawingHelper.Draw(_wrenchModel, collectible.World, _camera.View, _camera.Projection, Color.LightGray, _basicShader);
+                        break;
+                }
+            }
+        }
 
         base.Draw(gameTime);
     }

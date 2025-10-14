@@ -12,6 +12,7 @@ namespace TGC.MonoGame.TP.Zero
         private Vector3 currentCamPos;
         private Vector3 currentLookAt;
         private const float SmoothFactor = 0.1f; // Between 0 (very smooth) and 1 (no smoothing)
+        public BoundingFrustum Frustum { get; private set; } // Para optimizacion de cargar solo lo que esta en el frustum
 
         public Camera(float aspectRatio, float distanceBack, float heightOffset, float lookAhead)
         {
@@ -49,7 +50,7 @@ namespace TGC.MonoGame.TP.Zero
 
             Vector3 desiredCamPos = targetPos + forward * distanceBack + up * heightOffset;
             Vector3 desiredLookAt = targetPos + forward * lookAhead;
-            
+
             currentCamPos = Vector3.Lerp(currentCamPos, desiredCamPos, SmoothFactor);
             currentLookAt = Vector3.Lerp(currentLookAt, desiredLookAt, SmoothFactor);
 
@@ -58,6 +59,7 @@ namespace TGC.MonoGame.TP.Zero
             //Vector3 lookAt = targetPos + forward * lookAhead;
 
             View = Matrix.CreateLookAt(currentCamPos, currentLookAt, Vector3.Up);
+            Frustum = new BoundingFrustum(View * Projection);
         }
     }
 }
