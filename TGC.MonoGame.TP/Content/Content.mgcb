@@ -417,6 +417,13 @@
 /processorParam:TextureFormat=Compressed
 /build:Models/Tree/Tree.fbx
 
+#begin SpriteFonts/GameOver.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Compressed
+/build:SpriteFonts/GameOver.spritefont
+
 #begin SpriteFonts/MainFont.spritefont
 /importer:FontDescriptionImporter
 /processor:FontDescriptionProcessor

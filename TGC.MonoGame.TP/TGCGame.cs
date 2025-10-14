@@ -41,8 +41,11 @@ public class TGCGame : Game
 
     #region HUD
     private int _score = 0;
-    private float _fuel = 100f; // El combustible empieza al máximo
+    private float _fuel = 100f;
     private int _wrenches = 0;
+    private float _health = 100f;
+    private bool _gameOver = false;
+    private SpriteFont _gameOverFont;
     private SpriteFont _mainFont;
     private Texture2D _coinIcon;
     private Texture2D _wrenchIcon;
@@ -80,6 +83,9 @@ public class TGCGame : Game
     private Model _gasModel;
     private Model _wrenchModel;
     private Model _coinModel;
+    private Model _deerModel;
+    private Model _goatModel;
+    private Model _cowModel;
     #endregion
 
     #region Matrices de mundo
@@ -114,7 +120,8 @@ public class TGCGame : Game
 
     private List<Vector3> _collectibleSpawnPoints = new List<Vector3>();
     private List<Collectible> _collectibles = new List<Collectible>();
-
+    private List<Vector3> _obstacleSpawnPoints = new List<Vector3>();
+    private List<Obstacle> _obstacles = new List<Obstacle>();
     public enum TerrainType
     {
         Asphalt = 0,
@@ -202,6 +209,7 @@ public class TGCGame : Game
 
         #region HUD
         _mainFont = Content.Load<SpriteFont>(ContentFolderSpriteFonts + "MainFont");
+        _gameOverFont = Content.Load<SpriteFont>(ContentFolderSpriteFonts + "GameOver");
         _coinIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/coin_icon");
         _wrenchIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/wrench_icon");
         _gasIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/gas_icon");
@@ -221,6 +229,9 @@ public class TGCGame : Game
         _gasModel = Content.Load<Model>(ContentFolder3D + "Collectables/Gas/Gas");
         _wrenchModel = Content.Load<Model>(ContentFolder3D + "Collectables/Wrench/Wrench");
         _coinModel = Content.Load<Model>(ContentFolder3D + "Collectables/Coin/Coin");
+        _cowModel = Content.Load<Model>(ContentFolder3D + "Animals/cow");
+        _deerModel = Content.Load<Model>(ContentFolder3D + "Animals/deer");
+        _goatModel = Content.Load<Model>(ContentFolder3D + "Animals/goat");
 
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
@@ -270,6 +281,9 @@ public class TGCGame : Game
         ModelDrawingHelper.AttachEffectToModel(_gasModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_wrenchModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_coinModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_cowModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_deerModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_goatModel, _basicShader);
 
         _floor = new QuadPrimitive(GraphicsDevice);
         _road = new QuadPrimitive(GraphicsDevice);
@@ -305,6 +319,12 @@ public class TGCGame : Game
                 Vector3 worldSpawnPosition = Vector3.Transform(spawnPosition, trackWorld);
                 _collectibleSpawnPoints.Add(worldSpawnPosition);
             }
+            else if (bone.Name.StartsWith("obstacle"))
+            {
+                Vector3 spawnPosition = bone.Transform.Translation;
+                Vector3 worldSpawnPosition = Vector3.Transform(spawnPosition, trackWorld);
+                _obstacleSpawnPoints.Add(worldSpawnPosition);
+            }
         }
 
         // Creo collectibles en orden random
@@ -312,6 +332,12 @@ public class TGCGame : Game
         {
             var randomType = (CollectibleType)_random.Next(0, 3); // 0=Coin, 1=Gas, 2=Wrench
             _collectibles.Add(new Collectible(randomType, spawnPoint));
+        }
+
+        foreach (var spawnPoint in _obstacleSpawnPoints)
+        {
+            var randomType = (ObstacleType)_random.Next(0, 3); // 0=Cow, 1=Deer, 2=Goat
+            _obstacles.Add(new Obstacle(randomType, spawnPoint));
         }
 
         base.LoadContent();
@@ -333,6 +359,16 @@ public class TGCGame : Game
         {
             //Exit of the game
             Exit();
+        }
+
+        if (_gameOver)
+        {
+            if (keyboardState.IsKeyDown(Keys.Enter))
+            {
+                RestartGame();
+            }
+            base.Update(gameTime);
+            return;
         }
 
         switch (status)
@@ -357,6 +393,20 @@ public class TGCGame : Game
                 #endregion
                 break;
             case ST_STAGE_1:
+                #region Logica del juego
+
+                // Consumo de nafta
+                _fuel -= 5f * deltaTime;
+
+                // Reparacion
+                if (keyboardState.IsKeyDown(Keys.R) && _wrenches > 0 && _health < 100f)
+                {
+                    _health = 100f;
+                    _wrenches--;
+                }
+
+                #endregion
+
                 #region Movimiento del auto
                 // Automatic acceleration
                 if (_carSpeed < MaxSpeed)
@@ -429,10 +479,88 @@ public class TGCGame : Game
                 }
                 #endregion
 
+                #region Detección de Colisiones con Obstáculos
+                CheckCollisions();
+                #endregion
+
+                if (_health <= 0f || _fuel <= 0f)
+                {
+                    _gameOver = true;
+                }
                 break;
         }
         _camera.Update(_carWorld, _carRotation);
         base.Update(gameTime);
+    }
+
+    private void CheckCollisions()
+    {
+        const float FrontalCollisionThreshold = 0.85f; // Umbral para considerar un choque como frontal/trasero
+
+        foreach (var obstacle in _obstacles)
+        {
+            if (_carBoundingSphere.Intersects(obstacle.BoundingSphere))
+            {
+                // Vector que va desde el centro del auto hacia el obstáculo
+                Vector3 collisionDirection = Vector3.Normalize(obstacle.BoundingSphere.Center - _carBoundingSphere.Center);
+
+                // El producto punto nos dice qué tan alineados están los vectores.
+                // Si es cercano a 1 (o -1), el choque es frontal (o trasero).
+                // Si es cercano a 0, el choque es lateral.
+                float dotProduct = Vector3.Dot(_carDirection, collisionDirection);
+
+                if (Math.Abs(dotProduct) > FrontalCollisionThreshold)
+                {
+                    // CHOQUE FRONTAL O TRASERO = DAÑO TOTAL
+                    _health = 0f;
+                }
+                else
+                {
+                    // CHOQUE LATERAL = DAÑO PARCIAL
+                    _health -= 35f;
+
+                    // Efecto de rebote simple
+                    _carSpeed *= 0.5f;
+                }
+
+                break;
+            }
+        }
+    }
+
+    private void RestartGame()
+    {
+        // Resetear estado del jugador
+        _score = 0;
+        _fuel = 100f;
+        _health = 100f;
+        _wrenches = 0;
+
+        // Resetear estado del auto
+        _carPosition = new Vector3(0f, 0f, _roadLength); // Posición inicial
+        _carRotation = 0f;
+        _carSpeed = 0f;
+        _carDirection = Vector3.Forward;
+
+        // Limpiar listas de objetos
+        _collectibles.Clear();
+        _obstacles.Clear();
+
+        // Volver a crear los coleccionables y obstáculos con una nueva distribución aleatoria
+        foreach (var spawnPoint in _collectibleSpawnPoints)
+        {
+            var randomType = (CollectibleType)_random.Next(0, 3);
+            _collectibles.Add(new Collectible(randomType, spawnPoint));
+        }
+
+        foreach (var spawnPoint in _obstacleSpawnPoints)
+        {
+            var randomType = (ObstacleType)_random.Next(0, 3);
+            _obstacles.Add(new Obstacle(randomType, spawnPoint));
+        }
+
+        // Finalmente, salimos del estado de Game Over
+        _gameOver = false;
     }
 
     /// <summary>
@@ -455,7 +583,7 @@ public class TGCGame : Game
                 _basicShader.Parameters["View"].SetValue(_camera.View);
                 _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
 
-                ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
+                ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, Color.Blue, _basicShader);
 
                 // Dibujar múltiples árboles a ambos lados del camino
                 float treeSpacing = 200f; // Espaciado entre árboles
@@ -572,59 +700,117 @@ public class TGCGame : Game
                     }
                 }
 
-                #region Dibujado del HUD
+                #region Obstaculos
+                foreach (var obstacle in _obstacles)
+                {
+                    if (!frustum.Intersects(obstacle.BoundingSphere))
+                        continue;
 
+                    switch (obstacle.Type)
+                    {
+                        case ObstacleType.Cow:
+                            ModelDrawingHelper.Draw(_cowModel, obstacle.World, _camera.View, _camera.Projection, Color.White, _basicShader);
+                            break;
+                        case ObstacleType.Deer:
+                            ModelDrawingHelper.Draw(_deerModel, obstacle.World, _camera.View, _camera.Projection, Color.SaddleBrown, _basicShader);
+                            break;
+                        case ObstacleType.Goat:
+                            ModelDrawingHelper.Draw(_goatModel, obstacle.World, _camera.View, _camera.Projection, Color.LightGray, _basicShader);
+                            break;
+                    }
+                }
+                #endregion
+
+                #region Dibujado del HUD
                 _spriteBatch.Begin();
 
-                // --- Definiciones Generales para el HUD ---
-                var startX = 50;
-                var currentY = 50;
-                var textMargin = 10;
-                var elementSpacing = 40;
-                var iconSize = 40;
-                var textColor = Color.White;
+                if (_gameOver)
+                {
+                    var gameOverText = "GAME OVER";
+                    var restartText = "Press Enter to Restart";
 
-                // --- 1. Score (Puntaje) ---
-                var scoreIconPosition = new Vector2(startX, currentY);
-                _spriteBatch.Draw(_coinIcon, new Rectangle((int)scoreIconPosition.X, (int)scoreIconPosition.Y, iconSize, iconSize), Color.White);
+                    var gameOverSize = _gameOverFont.MeasureString(gameOverText);
+                    var restartSize = _mainFont.MeasureString(restartText);
 
-                var scoreTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Score:").Y) / 2);
-                _spriteBatch.DrawString(_mainFont, "Score: " + _score, scoreTextPosition, textColor);
+                    var screenCenter = GraphicsDevice.Viewport.Bounds.Center.ToVector2();
 
-                currentY += elementSpacing;
+                    var gameOverPosition = screenCenter - new Vector2(gameOverSize.X / 2, gameOverSize.Y);
+                    var restartPosition = screenCenter - new Vector2(restartSize.X / 2, -10f);
 
-                // --- 2. Repairs (Llaves) ---
-                var wrenchIconPosition = new Vector2(startX, currentY);
-                _spriteBatch.Draw(_wrenchIcon, new Rectangle((int)wrenchIconPosition.X, (int)wrenchIconPosition.Y, iconSize, iconSize), Color.White);
+                    _spriteBatch.DrawString(_gameOverFont, gameOverText, gameOverPosition, Color.Red);
+                    _spriteBatch.DrawString(_mainFont, restartText, restartPosition, Color.White);
+                }
+                else
+                {
+                    // --- HUD DURANTE EL JUEGO ---
+                    var startX = 50;
+                    var currentY = 50;
+                    var textMargin = 10;
+                    var elementSpacing = 40;
+                    var iconSize = 32;
+                    var textColor = Color.White;
 
-                var wrenchesTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Repairs:").Y) / 2);
-                _spriteBatch.DrawString(_mainFont, "Repairs: " + _wrenches, wrenchesTextPosition, textColor);
+                    // Score
+                    var scoreIconPosition = new Vector2(startX, currentY);
+                    _spriteBatch.Draw(_coinIcon, new Rectangle((int)scoreIconPosition.X, (int)scoreIconPosition.Y, iconSize, iconSize), Color.White);
 
-                currentY += elementSpacing;
+                    var scoreTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Score:").Y) / 2);
+                    _spriteBatch.DrawString(_mainFont, "Score: " + _score, scoreTextPosition, textColor);
 
-                // --- 3. Fuel (Combustible) ---
-                var gasIconPosition = new Vector2(startX, currentY);
-                _spriteBatch.Draw(_gasIcon, new Rectangle((int)gasIconPosition.X, (int)gasIconPosition.Y, iconSize, iconSize), Color.White);
+                    currentY += elementSpacing;
 
-                var fuelLabelTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Fuel").Y) / 2);
-                _spriteBatch.DrawString(_mainFont, "Fuel", fuelLabelTextPosition, textColor);
+                    // Repairs
+                    var wrenchIconPosition = new Vector2(startX, currentY);
+                    _spriteBatch.Draw(_wrenchIcon, new Rectangle((int)wrenchIconPosition.X, (int)wrenchIconPosition.Y, iconSize, iconSize), Color.White);
 
-                currentY += iconSize + 5;
+                    var wrenchesText = "Repairs: " + _wrenches;
+                    var wrenchesTextSize = _mainFont.MeasureString(wrenchesText);
+                    var wrenchesTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - wrenchesTextSize.Y) / 2);
+                    _spriteBatch.DrawString(_mainFont, wrenchesText, wrenchesTextPosition, textColor);
 
-                // Lógica para la barra de combustible
-                var fuelBarPosition = new Vector2(startX, currentY);
-                var fuelBarWidth = 200;
-                var fuelBarHeight = 20;
+                    // AÑADIMOS EL TEXTO DE AYUDA PARA REPARAR
+                    var repairHelpText = "(Press R to use)";
+                    var repairHelpTextPosition = new Vector2(wrenchesTextPosition.X + wrenchesTextSize.X + textMargin, wrenchesTextPosition.Y);
+                    _spriteBatch.DrawString(_mainFont, repairHelpText, repairHelpTextPosition, Color.LightGray);
 
-                var backgroundRect = new Rectangle((int)fuelBarPosition.X, (int)fuelBarPosition.Y, fuelBarWidth, fuelBarHeight);
-                var fuelRect = new Rectangle((int)fuelBarPosition.X, (int)fuelBarPosition.Y, (int)(fuelBarWidth * (_fuel / 100f)), fuelBarHeight);
+                    currentY += elementSpacing;
 
-                // USAMOS LA TEXTURA PRE-CARGADA
-                _spriteBatch.Draw(_pixelTexture, backgroundRect, Color.DarkGray);
-                _spriteBatch.Draw(_pixelTexture, fuelRect, Color.Green);
+                    // Barra de Vida (health)
+                    _spriteBatch.DrawString(_mainFont, "health", new Vector2(startX, currentY), textColor);
+                    currentY += 25;
+
+                    var healthBarPosition = new Vector2(startX, currentY);
+                    var barWidth = 200;
+                    var barHeight = 20;
+
+                    var healthBackgroundRect = new Rectangle((int)healthBarPosition.X, (int)healthBarPosition.Y, barWidth, barHeight);
+                    var healthRect = new Rectangle((int)healthBarPosition.X, (int)healthBarPosition.Y, (int)(barWidth * (_health / 100f)), barHeight);
+
+                    Color healthColor = Color.Lerp(Color.Red, Color.LightGreen, _health / 100f);
+
+                    _spriteBatch.Draw(_pixelTexture, healthBackgroundRect, Color.DarkGray);
+                    _spriteBatch.Draw(_pixelTexture, healthRect, healthColor);
+
+                    currentY += elementSpacing;
+
+                    // Fuel
+                    var gasIconPosition = new Vector2(startX, currentY);
+                    _spriteBatch.Draw(_gasIcon, new Rectangle((int)gasIconPosition.X, (int)gasIconPosition.Y, iconSize, iconSize), Color.White);
+
+                    var fuelLabelTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Fuel").Y) / 2);
+                    _spriteBatch.DrawString(_mainFont, "Fuel", fuelLabelTextPosition, textColor);
+
+                    currentY += iconSize + 5;
+
+                    var fuelBarPosition = new Vector2(startX, currentY);
+                    var fuelBackgroundRect = new Rectangle((int)fuelBarPosition.X, (int)fuelBarPosition.Y, barWidth, barHeight);
+                    var fuelRect = new Rectangle((int)fuelBarPosition.X, (int)fuelBarPosition.Y, (int)(barWidth * (_fuel / 100f)), barHeight);
+
+                    _spriteBatch.Draw(_pixelTexture, fuelBackgroundRect, Color.DarkGray);
+                    _spriteBatch.Draw(_pixelTexture, fuelRect, Color.Green);
+                }
 
                 _spriteBatch.End();
-
                 #endregion
 
                 // IMPORTANTE: Restaurar estados de renderizado que SpriteBatch modifica
