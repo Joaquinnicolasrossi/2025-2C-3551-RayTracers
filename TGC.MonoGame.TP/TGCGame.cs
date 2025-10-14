@@ -448,10 +448,7 @@ public class TGCGame : Game
         switch (status)
         {
             case ST_SELECCION:
-                //_spriteBatch.Begin();
-                //_spriteBatch.Draw(_menuSeleccion, new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width - 100, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height - 100), Color.White);
-                //_spriteBatch.End();
-
+                DrawSelectionMenu();
                 break;
             case ST_STAGE_1:
 
@@ -500,18 +497,18 @@ public class TGCGame : Game
 
                 Matrix[] houseWorlds =
                 {
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-2500),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300, 1.02f, -2000),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-1500),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,-1000),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-500),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,0),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,500),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,1000),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,1500),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,2000),
-            Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,2500)
-        };
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-2500),
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300, 1.02f, -2000),
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-1500),
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,-1000),
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-500),
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,0),
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,500),
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,1000),
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,1500),
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,2000),
+                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,2500)
+                };
 
                 foreach (var world in houseWorlds)
                 {
@@ -646,5 +643,12 @@ public class TGCGame : Game
         Content.Unload();
 
         base.UnloadContent();
+    }
+
+    public void DrawSelectionMenu()
+    {
+        _spriteBatch.Begin();
+        _spriteBatch.Draw(_menuSeleccion, new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width - 100, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height - 100), Color.White);
+        _spriteBatch.End();
     }
 }
