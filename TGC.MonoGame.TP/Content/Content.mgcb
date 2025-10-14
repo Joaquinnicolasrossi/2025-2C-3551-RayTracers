@@ -25,6 +25,18 @@
 /processorParam:DebugMode=Auto
 /build:Effects/GrassShader.fx
 
+#begin Menus/menu_vehicle_selection.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Menus/menu_vehicle_selection.png
+
 #begin Models/Animals/cat.fbx
 /importer:FbxImporter
 /processor:ModelProcessor
@@ -158,7 +170,7 @@
 /processorParam:TextureFormat=Compressed
 /build:Models/Animals/wolf.fbx
 
-#begin Models/Cars/Cybertruck/cybertruck.fbx
+#begin Models/Cars/Cybertruck/Cybertruck1.fbx
 /importer:FbxImporter
 /processor:ModelProcessor
 /processorParam:ColorKeyColor=0,0,0,0
@@ -175,7 +187,7 @@
 /processorParam:Scale=1
 /processorParam:SwapWindingOrder=False
 /processorParam:TextureFormat=Compressed
-/build:Models/Cars/Cybertruck/cybertruck.fbx
+/build:Models/Cars/Cybertruck/Cybertruck1.fbx
 
 #begin Models/Cars/F1/F1.fbx
 /importer:FbxImporter

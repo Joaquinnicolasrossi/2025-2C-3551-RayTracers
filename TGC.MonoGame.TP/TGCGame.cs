@@ -68,7 +68,10 @@ public class TGCGame : Game
     #endregion
 
     #region Modelos
-    private Model _carModel;
+    private Model _selectedCarModel;
+    private Model _racingCarModel;
+    private Model _f1CarModel;
+    private Model _cybertruckModel;
     private Model _houseModel;
     private Model _plantModel;
     private Model _rockModel;
@@ -97,6 +100,14 @@ public class TGCGame : Game
     private Effect _grassShader;
     #endregion
 
+    #region Menu
+    public const int ST_PRESENTACION = 0; //Menu Principal (no implementado)
+    public const int ST_SELECCION = 1;
+    public const int ST_STAGE_1 = 2;
+    public int status = ST_SELECCION;
+    private Texture2D _menuSeleccion;
+
+    #endregion
     private readonly GraphicsDeviceManager _graphics;
     private Camera _camera;
     private SpriteBatch _spriteBatch;
@@ -198,7 +209,10 @@ public class TGCGame : Game
         _pixelTexture.SetData(new[] { Color.White });
         #endregion
 
-        _carModel = Content.Load<Model>(ContentFolder3D + "Cars/RacingCarA/RacingCar");
+        _menuSeleccion = Content.Load<Texture2D>("Menus/menu_vehicle_selection");
+        _racingCarModel = Content.Load<Model>(ContentFolder3D + "Cars/RacingCarA/RacingCar");
+        _cybertruckModel = Content.Load<Model>(ContentFolder3D + "Cars/Cybertruck/Cybertruck1");
+        _f1CarModel = Content.Load<Model>(ContentFolder3D + "Cars/F1/F1");
         _treeModel = Content.Load<Model>(ContentFolder3D + "Tree/Tree");
         _houseModel = Content.Load<Model>(ContentFolder3D + "Houses/Cabin");
         _trackModel = Content.Load<Model>(ContentFolder3D + "Track/road");
@@ -245,7 +259,9 @@ public class TGCGame : Game
         }
 
         // Asigno el efecto que cargue a cada parte del mesh.
-        ModelDrawingHelper.AttachEffectToModel(_carModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_racingCarModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_cybertruckModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_f1CarModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_treeModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_houseModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_trackModel, _basicShader);
@@ -319,80 +335,101 @@ public class TGCGame : Game
             Exit();
         }
 
-        #region Movimiento del auto
-        // Automatic acceleration
-        if (_carSpeed < MaxSpeed)
-            _carSpeed += Acceleration * deltaTime;
-        else
-            _carSpeed = MaxSpeed;
-
-        // Braking
-        if (keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.Space))
+        switch (status)
         {
-            _carSpeed -= BrakeDeceleration * deltaTime;
-            if (_carSpeed < 0f) _carSpeed = 0f;
-        }
-
-        // Rotation
-        float turn = 0f;
-        if (keyboardState.IsKeyDown(Keys.A))
-            turn += TurnSpeed * deltaTime;
-        if (keyboardState.IsKeyDown(Keys.D))
-            turn -= TurnSpeed * deltaTime;
-
-        _carRotation += turn;
-
-        // Drift effect
-        var desiredDirection = Vector3.Transform(Vector3.Forward, Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation)));
-        _carDirection = Vector3.Normalize(_carDirection * DriftFactor + desiredDirection * (1f - DriftFactor));
-
-        // Moving the car
-        _carPosition -= _carDirection * _carSpeed * deltaTime;
-
-        _carWorld = Matrix.CreateScale(0.1f) * Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation))
-                    * Matrix.CreateTranslation(_carPosition);
-
-        _carBoundingSphere.Center = _carPosition;
-        #endregion
-
-        _camera.Update(_carWorld, _carRotation);
-
-        #region Coleccionables
-        // Animacion de los coleccionables
-        foreach (var collectible in _collectibles)
-        {
-            if (collectible.IsActive)
-            {
-                collectible.Update(gameTime);
-            }
-        }
-
-        // Deteccion de colisiones
-        foreach (var collectible in _collectibles)
-        {
-            if (collectible.IsActive)
-            {
-                if (_carBoundingSphere.Intersects(collectible.BoundingSphere)) // hay colision
+            case ST_SELECCION:
+                #region MenuSeleccion
+                if (keyboardState.IsKeyDown(Keys.D1))
                 {
-                    collectible.IsActive = false;
+                    _selectedCarModel = _f1CarModel;
+                    status = ST_STAGE_1;
+                }
+                if (keyboardState.IsKeyDown(Keys.D2))
+                {
+                    _selectedCarModel = _racingCarModel;
+                    status = ST_STAGE_1;
+                }
+                if (keyboardState.IsKeyDown(Keys.D3))
+                {
+                    _selectedCarModel = _cybertruckModel;
+                    status = ST_STAGE_1;
+                }
+                #endregion
+                break;
+            case ST_STAGE_1:
+                #region Movimiento del auto
+                // Automatic acceleration
+                if (_carSpeed < MaxSpeed)
+                    _carSpeed += Acceleration * deltaTime;
+                else
+                    _carSpeed = MaxSpeed;
 
-                    switch (collectible.Type)
+                // Braking
+                if (keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.Space))
+                {
+                    _carSpeed -= BrakeDeceleration * deltaTime;
+                    if (_carSpeed < 0f) _carSpeed = 0f;
+                }
+
+                // Rotation
+                float turn = 0f;
+                if (keyboardState.IsKeyDown(Keys.A))
+                    turn += TurnSpeed * deltaTime;
+                if (keyboardState.IsKeyDown(Keys.D))
+                    turn -= TurnSpeed * deltaTime;
+
+                _carRotation += turn;
+
+                // Drift effect
+                var desiredDirection = Vector3.Transform(Vector3.Forward, Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation)));
+                _carDirection = Vector3.Normalize(_carDirection * DriftFactor + desiredDirection * (1f - DriftFactor));
+
+                // Moving the car
+                _carPosition -= _carDirection * _carSpeed * deltaTime;
+
+                _carWorld = Matrix.CreateScale(0.1f) * Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation))
+                            * Matrix.CreateTranslation(_carPosition);
+                #endregion
+
+                #region Coleccionables
+                // Animacion de los coleccionables
+                foreach (var collectible in _collectibles)
+                {
+                    if (collectible.IsActive)
                     {
-                        case CollectibleType.Coin:
-                            _score += 100;
-                            break;
-                        case CollectibleType.Gas:
-                            _fuel = 100f;
-                            break;
-                        case CollectibleType.Wrench:
-                            _wrenches++;
-                            break;
+                        collectible.Update(gameTime);
                     }
                 }
-            }
-        }
-        #endregion
 
+                // Deteccion de colisiones
+                foreach (var collectible in _collectibles)
+                {
+                    if (collectible.IsActive)
+                    {
+                        if (_carBoundingSphere.Intersects(collectible.BoundingSphere)) // hay colision
+                        {
+                            collectible.IsActive = false;
+
+                            switch (collectible.Type)
+                            {
+                                case CollectibleType.Coin:
+                                    _score += 100;
+                                    break;
+                                case CollectibleType.Gas:
+                                    _fuel = 100f;
+                                    break;
+                                case CollectibleType.Wrench:
+                                    _wrenches++;
+                                    break;
+                            }
+                        }
+                    }
+                }
+                #endregion
+
+                break;
+        }
+        _camera.Update(_carWorld, _carRotation);
         base.Update(gameTime);
     }
 
@@ -406,52 +443,61 @@ public class TGCGame : Game
 
         GraphicsDevice.Clear(Color.LightBlue);
 
-        //! NOTA: SOLO HACE FALTA DEFINIR VIEW Y PROJECTION UNA VEZ
-        _basicShader.Parameters["View"].SetValue(_camera.View);
-        _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
-
-        ModelDrawingHelper.Draw(_carModel, _carWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
-
-        // Dibujar múltiples árboles a ambos lados del camino
-        float treeSpacing = 200f; // Espaciado entre árboles
-        float treeDistance = 120f; // Distancia desde el centro del camino
-
-        for (float z = -_roadLength + treeSpacing; z < _roadLength; z += treeSpacing)
+        switch (status)
         {
-            // Árboles del lado derecho (X positivo)
-            Matrix rightTreeWorld = Matrix.CreateScale(20f + (z % 100) / 20f) * // Variación de tamaño de los árboles
-                                   Matrix.CreateRotationY(z * 0.01f) * // Rotación de los árboles
-                                   Matrix.CreateTranslation(new Vector3(treeDistance, 0f, z));
-            ModelDrawingHelper.Draw(_treeModel, rightTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+            case ST_SELECCION:
+                //_spriteBatch.Begin();
+                //_spriteBatch.Draw(_menuSeleccion, new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width - 100, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height - 100), Color.White);
+                //_spriteBatch.End();
 
-            // Árboles del lado izquierdo (X negativo)
-            Matrix leftTreeWorld = Matrix.CreateScale(15f + ((z + 50) % 100) / 15f) * // Variación de tamaño de los árboles
-                                  Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de los árboles
-                                  Matrix.CreateTranslation(new Vector3(-treeDistance, 0f, z + 100f)); // Offset para que no estén alineados los árboles
-            ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
-        }
+                break;
+            case ST_STAGE_1:
 
-        GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
-        // Draw the floor
-        _grassShader.Parameters["View"].SetValue(_camera.View);
-        _grassShader.Parameters["Projection"].SetValue(_camera.Projection);
-        _grassShader.Parameters["World"].SetValue(_floorWorld);
-        _grassShader.Parameters["Time"].SetValue((float)gameTime.TotalGameTime.TotalSeconds);
+                _basicShader.Parameters["View"].SetValue(_camera.View);
+                _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
 
-        // tuning
-        _grassShader.Parameters["WindSpeed"].SetValue(1.0f);
-        _grassShader.Parameters["WindScale"].SetValue(0.12f);
-        _grassShader.Parameters["WindStrength"].SetValue(0.6f);
-        _grassShader.Parameters["Exposure"].SetValue(1.4f);
+                ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
 
-        _grassShader.Parameters["Tiling"].SetValue(1000f);          // cuantas repeticiones de la textura
-        _grassShader.Parameters["ScrollSpeed"].SetValue(0.0f); // if != 0, the texture will move
-        _grassShader.Parameters["TextureInfluence"].SetValue(0.65f);
-        _grassShader.Parameters["GrassTexture"].SetValue(_grassTexture);
-        _floor.Draw(_grassShader);
+                // Dibujar múltiples árboles a ambos lados del camino
+                float treeSpacing = 200f; // Espaciado entre árboles
+                float treeDistance = 120f; // Distancia desde el centro del camino
 
-        Matrix[] houseWorlds =
-        {
+                for (float z = -_roadLength + treeSpacing; z < _roadLength; z += treeSpacing)
+                {
+                    // Árboles del lado derecho (X positivo)
+                    Matrix rightTreeWorld = Matrix.CreateScale(20f + (z % 100) / 20f) * // Variación de tamaño de los árboles
+                                           Matrix.CreateRotationY(z * 0.01f) * // Rotación de los árboles
+                                           Matrix.CreateTranslation(new Vector3(treeDistance, 0f, z));
+                    ModelDrawingHelper.Draw(_treeModel, rightTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+
+                    // Árboles del lado izquierdo (X negativo)
+                    Matrix leftTreeWorld = Matrix.CreateScale(15f + ((z + 50) % 100) / 15f) * // Variación de tamaño de los árboles
+                                          Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de los árboles
+                                          Matrix.CreateTranslation(new Vector3(-treeDistance, 0f, z + 100f)); // Offset para que no estén alineados los árboles
+                    ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+                }
+
+                GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
+                // Draw the floor
+                _grassShader.Parameters["View"].SetValue(_camera.View);
+                _grassShader.Parameters["Projection"].SetValue(_camera.Projection);
+                _grassShader.Parameters["World"].SetValue(_floorWorld);
+                _grassShader.Parameters["Time"].SetValue((float)gameTime.TotalGameTime.TotalSeconds);
+
+                // tuning
+                _grassShader.Parameters["WindSpeed"].SetValue(1.0f);
+                _grassShader.Parameters["WindScale"].SetValue(0.12f);
+                _grassShader.Parameters["WindStrength"].SetValue(0.6f);
+                _grassShader.Parameters["Exposure"].SetValue(1.4f);
+
+                _grassShader.Parameters["Tiling"].SetValue(1000f);          // cuantas repeticiones de la textura
+                _grassShader.Parameters["ScrollSpeed"].SetValue(0.0f); // if != 0, the texture will move
+                _grassShader.Parameters["TextureInfluence"].SetValue(0.65f);
+                _grassShader.Parameters["GrassTexture"].SetValue(_grassTexture);
+                _floor.Draw(_grassShader);
+
+                Matrix[] houseWorlds =
+                {
             Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-2500),
             Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300, 1.02f, -2000),
             Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-1500),
@@ -465,126 +511,127 @@ public class TGCGame : Game
             Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,2500)
         };
 
-        foreach (var world in houseWorlds)
-        {
-            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _basicShader);
-        }
-
-        // Dibujar casas en cada posición de empty
-        foreach (var world in casasWorld)
-        {
-            ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _basicShader);
-        }
-
-        foreach (var world in piedrasWorld)
-        {
-            ModelDrawingHelper.Draw(_rockModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
-        }
-
-        foreach (var world in plantasWorld)
-        {
-            ModelDrawingHelper.Draw(_plantModel, world, _camera.View, _camera.Projection, Color.Green, _basicShader);
-        }
-
-        _basicShader.Parameters["World"].SetValue(_roadWorld);
-        _basicShader.Parameters["UseTexture"].SetValue(1f);
-        _basicShader.Parameters["MainTexture"].SetValue(_roadTexture);
-        _road.Draw(_basicShader);
-
-        for (float z = -_roadLength + _lineSpacing; z < _roadLength; z += _lineSpacing)
-        {
-            _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 1f, z)); // 0.04 para evitar z-fighting
-
-            _basicShader.Parameters["World"].SetValue(_lineWorld);
-            _basicShader.Parameters["UseTexture"].SetValue(0f);
-            _basicShader.Parameters["DiffuseColor"].SetValue(Color.Yellow.ToVector3());
-            _line.Draw(_basicShader);
-        }
-
-
-        ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, _roadTexture, _basicShader);
-
-        foreach (var collectible in _collectibles)
-        {
-            // OPTIMIZACION PARA NO RENDERIZAR LO QUE NO SE ESTA VIENDO
-            if (!frustum.Intersects(collectible.BoundingSphere))
-                continue;
-
-            if (collectible.IsActive)
-            {
-                switch (collectible.Type)
+                foreach (var world in houseWorlds)
                 {
-                    case CollectibleType.Coin:
-                        ModelDrawingHelper.Draw(_coinModel, collectible.World, _camera.View, _camera.Projection, Color.Gold, _basicShader);
-                        break;
-                    case CollectibleType.Gas:
-                        ModelDrawingHelper.Draw(_gasModel, collectible.World, _camera.View, _camera.Projection, Color.Red, _basicShader);
-                        break;
-                    case CollectibleType.Wrench:
-                        ModelDrawingHelper.Draw(_wrenchModel, collectible.World, _camera.View, _camera.Projection, Color.LightGray, _basicShader);
-                        break;
+                    ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _basicShader);
                 }
-            }
+
+                // Dibujar casas en cada posición de empty
+                foreach (var world in casasWorld)
+                {
+                    ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _basicShader);
+                }
+
+                foreach (var world in piedrasWorld)
+                {
+                    ModelDrawingHelper.Draw(_rockModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
+                }
+
+                foreach (var world in plantasWorld)
+                {
+                    ModelDrawingHelper.Draw(_plantModel, world, _camera.View, _camera.Projection, Color.Green, _basicShader);
+                }
+
+                _basicShader.Parameters["World"].SetValue(_roadWorld);
+                _basicShader.Parameters["UseTexture"].SetValue(1f);
+                _basicShader.Parameters["MainTexture"].SetValue(_roadTexture);
+                _road.Draw(_basicShader);
+
+                for (float z = -_roadLength + _lineSpacing; z < _roadLength; z += _lineSpacing)
+                {
+                    _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 1f, z)); // 0.04 para evitar z-fighting
+
+                    _basicShader.Parameters["World"].SetValue(_lineWorld);
+                    _basicShader.Parameters["UseTexture"].SetValue(0f);
+                    _basicShader.Parameters["DiffuseColor"].SetValue(Color.Yellow.ToVector3());
+                    _line.Draw(_basicShader);
+                }
+
+
+                ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, _roadTexture, _basicShader);
+
+                foreach (var collectible in _collectibles)
+                {
+                    // OPTIMIZACION PARA NO RENDERIZAR LO QUE NO SE ESTA VIENDO
+                    if (!frustum.Intersects(collectible.BoundingSphere))
+                        continue;
+
+                    if (collectible.IsActive)
+                    {
+                        switch (collectible.Type)
+                        {
+                            case CollectibleType.Coin:
+                                ModelDrawingHelper.Draw(_coinModel, collectible.World, _camera.View, _camera.Projection, Color.Gold, _basicShader);
+                                break;
+                            case CollectibleType.Gas:
+                                ModelDrawingHelper.Draw(_gasModel, collectible.World, _camera.View, _camera.Projection, Color.Red, _basicShader);
+                                break;
+                            case CollectibleType.Wrench:
+                                ModelDrawingHelper.Draw(_wrenchModel, collectible.World, _camera.View, _camera.Projection, Color.LightGray, _basicShader);
+                                break;
+                        }
+                    }
+                }
+
+                #region Dibujado del HUD
+
+                _spriteBatch.Begin();
+
+                // --- Definiciones Generales para el HUD ---
+                var startX = 50;
+                var currentY = 50;
+                var textMargin = 10;
+                var elementSpacing = 40;
+                var iconSize = 40;
+                var textColor = Color.White;
+
+                // --- 1. Score (Puntaje) ---
+                var scoreIconPosition = new Vector2(startX, currentY);
+                _spriteBatch.Draw(_coinIcon, new Rectangle((int)scoreIconPosition.X, (int)scoreIconPosition.Y, iconSize, iconSize), Color.White);
+
+                var scoreTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Score:").Y) / 2);
+                _spriteBatch.DrawString(_mainFont, "Score: " + _score, scoreTextPosition, textColor);
+
+                currentY += elementSpacing;
+
+                // --- 2. Repairs (Llaves) ---
+                var wrenchIconPosition = new Vector2(startX, currentY);
+                _spriteBatch.Draw(_wrenchIcon, new Rectangle((int)wrenchIconPosition.X, (int)wrenchIconPosition.Y, iconSize, iconSize), Color.White);
+
+                var wrenchesTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Repairs:").Y) / 2);
+                _spriteBatch.DrawString(_mainFont, "Repairs: " + _wrenches, wrenchesTextPosition, textColor);
+
+                currentY += elementSpacing;
+
+                // --- 3. Fuel (Combustible) ---
+                var gasIconPosition = new Vector2(startX, currentY);
+                _spriteBatch.Draw(_gasIcon, new Rectangle((int)gasIconPosition.X, (int)gasIconPosition.Y, iconSize, iconSize), Color.White);
+
+                var fuelLabelTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Fuel").Y) / 2);
+                _spriteBatch.DrawString(_mainFont, "Fuel", fuelLabelTextPosition, textColor);
+
+                currentY += iconSize + 5;
+
+                // Lógica para la barra de combustible
+                var fuelBarPosition = new Vector2(startX, currentY);
+                var fuelBarWidth = 200;
+                var fuelBarHeight = 20;
+
+                var backgroundRect = new Rectangle((int)fuelBarPosition.X, (int)fuelBarPosition.Y, fuelBarWidth, fuelBarHeight);
+                var fuelRect = new Rectangle((int)fuelBarPosition.X, (int)fuelBarPosition.Y, (int)(fuelBarWidth * (_fuel / 100f)), fuelBarHeight);
+
+                // USAMOS LA TEXTURA PRE-CARGADA
+                _spriteBatch.Draw(_pixelTexture, backgroundRect, Color.DarkGray);
+                _spriteBatch.Draw(_pixelTexture, fuelRect, Color.Green);
+
+                _spriteBatch.End();
+
+                #endregion
+
+                // IMPORTANTE: Restaurar estados de renderizado que SpriteBatch modifica
+                GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+                break;
         }
-
-        #region Dibujado del HUD
-
-        _spriteBatch.Begin();
-
-        // --- Definiciones Generales para el HUD ---
-        var startX = 50;
-        var currentY = 50;
-        var textMargin = 10;
-        var elementSpacing = 40;
-        var iconSize = 40;
-        var textColor = Color.White;
-
-        // --- 1. Score (Puntaje) ---
-        var scoreIconPosition = new Vector2(startX, currentY);
-        _spriteBatch.Draw(_coinIcon, new Rectangle((int)scoreIconPosition.X, (int)scoreIconPosition.Y, iconSize, iconSize), Color.White);
-
-        var scoreTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Score:").Y) / 2);
-        _spriteBatch.DrawString(_mainFont, "Score: " + _score, scoreTextPosition, textColor);
-
-        currentY += elementSpacing;
-
-        // --- 2. Repairs (Llaves) ---
-        var wrenchIconPosition = new Vector2(startX, currentY);
-        _spriteBatch.Draw(_wrenchIcon, new Rectangle((int)wrenchIconPosition.X, (int)wrenchIconPosition.Y, iconSize, iconSize), Color.White);
-
-        var wrenchesTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Repairs:").Y) / 2);
-        _spriteBatch.DrawString(_mainFont, "Repairs: " + _wrenches, wrenchesTextPosition, textColor);
-
-        currentY += elementSpacing;
-
-        // --- 3. Fuel (Combustible) ---
-        var gasIconPosition = new Vector2(startX, currentY);
-        _spriteBatch.Draw(_gasIcon, new Rectangle((int)gasIconPosition.X, (int)gasIconPosition.Y, iconSize, iconSize), Color.White);
-
-        var fuelLabelTextPosition = new Vector2(startX + iconSize + textMargin, currentY + (iconSize - _mainFont.MeasureString("Fuel").Y) / 2);
-        _spriteBatch.DrawString(_mainFont, "Fuel", fuelLabelTextPosition, textColor);
-
-        currentY += iconSize + 5;
-
-        // Lógica para la barra de combustible
-        var fuelBarPosition = new Vector2(startX, currentY);
-        var fuelBarWidth = 200;
-        var fuelBarHeight = 20;
-
-        var backgroundRect = new Rectangle((int)fuelBarPosition.X, (int)fuelBarPosition.Y, fuelBarWidth, fuelBarHeight);
-        var fuelRect = new Rectangle((int)fuelBarPosition.X, (int)fuelBarPosition.Y, (int)(fuelBarWidth * (_fuel / 100f)), fuelBarHeight);
-
-        // USAMOS LA TEXTURA PRE-CARGADA
-        _spriteBatch.Draw(_pixelTexture, backgroundRect, Color.DarkGray);
-        _spriteBatch.Draw(_pixelTexture, fuelRect, Color.Green);
-
-        _spriteBatch.End();
-
-        #endregion
-
-        // IMPORTANTE: Restaurar estados de renderizado que SpriteBatch modifica
-        GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-
         base.Draw(gameTime);
     }
 
