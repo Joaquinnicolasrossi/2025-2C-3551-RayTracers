@@ -18,9 +18,9 @@ namespace TGC.MonoGame.TP
         public bool IsActive { get; set; }
 
         // El radio de la esfera de colisión
-        private const float CoinRadius = 40f;
-        private const float GasRadius = 4f;
-        private const float WrenchRadius = 0.2f;
+        private const float CoinRadius = 3f;
+        private const float GasRadius = 5f;
+        private const float WrenchRadius = 0.4f;
 
         // Variables para la animación de rotación
         private float _animationRotation;
@@ -51,7 +51,7 @@ namespace TGC.MonoGame.TP
                 case CollectibleType.Wrench:
                     _scale = new Vector3(0.2f);
                     radius = WrenchRadius;
-                    _initialRotation = Matrix.CreateRotationY(MathHelper.ToRadians(45f));
+                    _initialRotation = Matrix.CreateRotationZ(MathHelper.ToRadians(45f));
                     break;
                 default:
                     _scale = new Vector3(1f);

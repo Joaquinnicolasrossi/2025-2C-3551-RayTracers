@@ -14,51 +14,20 @@ namespace TGC.MonoGame.TP;
 /// </summary>
 public class TGCGame : Game
 {
+    #region Paths
     public const string ContentFolder3D = "Models/";
     public const string ContentFolderEffects = "Effects/";
     public const string ContentFolderMusic = "Music/";
     public const string ContentFolderSounds = "Sounds/";
     public const string ContentFolderSpriteFonts = "SpriteFonts/";
     public const string ContentFolderTextures = "Textures/";
+    #endregion
 
-    public enum TerrainType
-    {
-        Asphalt = 0,
-        Dirt = 1,
-        Snow = 2
-    }
-
-    private readonly GraphicsDeviceManager _graphics;
-    private Effect _basicShader;
-    private Effect _grassShader;
-    private Texture _grassTexture;
-    private Texture2D _roadTexture;
-    private Model _carModel;
-    private Model _houseModel;
-    private Camera _camera;
-    private SpriteBatch _spriteBatch;
-    private Matrix _carWorld;
+    #region Logica del Auto
     private Vector3 _carPosition;
     private float _carRotation = 0f;
-    private Matrix trackWorld;
-
-
-    private Model _plantModel;
-    private Model _rockModel;
-    private Model _treeModel;
-    private Model _trackModel;
-    List<Matrix> casasWorld = new List<Matrix>();
-    List<Matrix> piedrasWorld = new List<Matrix>();
-    List<Matrix> plantasWorld = new List<Matrix>();
-
-    private Model _gasModel;
-    private Model _wrenchModel;
-    private Model _coinModel;
-    private List<Vector3> _collectibleSpawnPoints = new List<Vector3>();
-    private List<Collectible> _collectibles = new List<Collectible>();
-
-    private TerrainType _currentTerrain;
-    private Random _random = new Random();
+    private BoundingSphere _carBoundingSphere;
+    private const float CarBoundingSphereRadius = 20f;
 
     // Car's movement variables (need to be adjusted)
     private float _carSpeed = 0f;
@@ -68,17 +37,20 @@ public class TGCGame : Game
     private const float TurnSpeed = 60f;
     private float DriftFactor = 0.95f; // 0 (no drift) > DriftFactor > 1 (no adhesion)
     private Vector3 _carDirection = Vector3.Forward;
+    #endregion
 
-    /// <summary>
-    /// Geometry to draw a floor
-    /// </summary>
+    #region HUD
+    private int _score = 0;
+    private float _fuel = 100f; // El combustible empieza al máximo
+    private int _wrenches = 0;
+    #endregion
+
+    #region Circuito
+    // Pista Modelo
     private QuadPrimitive _floor;
-
-    /// <summary>
-    /// The world matrix for the floor
-    /// </summary>
     private Matrix _floorWorld;
 
+    // Pista generada a mano
     private QuadPrimitive _road;
     private Matrix _roadWorld;
     private float _roadLength;
@@ -88,6 +60,54 @@ public class TGCGame : Game
     private float _lineSpacing;
     private float _lineLength;
     private float _lineWidth;
+    #endregion
+
+    #region Modelos
+    private Model _carModel;
+    private Model _houseModel;
+    private Model _plantModel;
+    private Model _rockModel;
+    private Model _treeModel;
+    private Model _trackModel;
+    private Model _gasModel;
+    private Model _wrenchModel;
+    private Model _coinModel;
+    #endregion
+
+    #region Matrices de mundo
+    private Matrix _carWorld;
+    List<Matrix> casasWorld = new List<Matrix>();
+    List<Matrix> plantasWorld = new List<Matrix>();
+    List<Matrix> piedrasWorld = new List<Matrix>();
+    private Matrix trackWorld;
+    #endregion
+
+    #region Texturas
+    private Texture _grassTexture;
+    private Texture2D _roadTexture;
+    #endregion
+
+    #region Shaders
+    private Effect _basicShader;
+    private Effect _grassShader;
+    #endregion
+
+    private readonly GraphicsDeviceManager _graphics;
+    private Camera _camera;
+    private SpriteBatch _spriteBatch;
+
+    private List<Vector3> _collectibleSpawnPoints = new List<Vector3>();
+    private List<Collectible> _collectibles = new List<Collectible>();
+
+    public enum TerrainType
+    {
+        Asphalt = 0,
+        Dirt = 1,
+        Snow = 2
+    }
+
+    private TerrainType _currentTerrain;
+    private Random _random = new Random();
 
     /// <summary>
     ///     Constructor del juego.
@@ -140,13 +160,16 @@ public class TGCGame : Game
 
         _roadWorld = Matrix.CreateScale(_roadWidth, 1f, _roadLength) * Matrix.CreateTranslation(new Vector3(0f, 0.5f, 0.00f)); // 0.02 para evitar z-fighting
 
-        // Inicializo el auto en el principio de la ruta mas un pequeño offset para que solo se vea el mapa
+        // Inicializo el auto en el principio de la ruta de modelo
         _carPosition = new Vector3(0f, 0f, _roadLength);
 
         trackWorld = Matrix.CreateScale(0.66f) * Matrix.CreateRotationY(-MathHelper.PiOver2)
                                                       * Matrix.CreateTranslation(-455, 1f, 3200);
 
         _currentTerrain = (TerrainType)_random.Next(0, 3);
+
+        _carBoundingSphere.Center = _carPosition;
+        _carBoundingSphere.Radius = CarBoundingSphereRadius;
 
         base.Initialize();
     }
@@ -314,10 +337,13 @@ public class TGCGame : Game
 
         _carWorld = Matrix.CreateScale(0.1f) * Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation))
                     * Matrix.CreateTranslation(_carPosition);
+
+        _carBoundingSphere.Center = _carPosition;
         #endregion
 
         _camera.Update(_carWorld, _carRotation);
 
+        #region Coleccionables
         // Animacion de los coleccionables
         foreach (var collectible in _collectibles)
         {
@@ -326,6 +352,32 @@ public class TGCGame : Game
                 collectible.Update(gameTime);
             }
         }
+
+        // Deteccion de colisiones
+        foreach (var collectible in _collectibles)
+        {
+            if (collectible.IsActive)
+            {
+                if (_carBoundingSphere.Intersects(collectible.BoundingSphere)) // hay colision
+                {
+                    collectible.IsActive = false;
+
+                    switch (collectible.Type)
+                    {
+                        case CollectibleType.Coin:
+                            _score += 100;
+                            break;
+                        case CollectibleType.Gas:
+                            _fuel = 100f;
+                            break;
+                        case CollectibleType.Wrench:
+                            _wrenches++;
+                            break;
+                    }
+                }
+            }
+        }
+        #endregion
 
         base.Update(gameTime);
     }
