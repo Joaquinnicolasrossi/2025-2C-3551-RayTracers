@@ -107,12 +107,12 @@ public class TGCGame : Game
     #endregion
 
     #region Menu
-    public const int ST_PRESENTACION = 0; //Menu Principal (no implementado)
+    public const int ST_PRESENTACION = 0;
     public const int ST_SELECCION = 1;
     public const int ST_STAGE_1 = 2;
-    public int status = ST_SELECCION;
-    private Texture2D _menuSeleccion;
-
+    public int status = ST_PRESENTACION;
+    private Texture2D _menuSelection;
+    private Texture2D _menuStart;
     #endregion
     private readonly GraphicsDeviceManager _graphics;
     private Camera _camera;
@@ -209,7 +209,7 @@ public class TGCGame : Game
 
         #region HUD
         _mainFont = Content.Load<SpriteFont>(ContentFolderSpriteFonts + "MainFont");
-        _gameOverFont = Content.Load<SpriteFont>(ContentFolderSpriteFonts + "GameOver");
+       _gameOverFont = Content.Load<SpriteFont>(ContentFolderSpriteFonts + "GameOver");
         _coinIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/coin_icon");
         _wrenchIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/wrench_icon");
         _gasIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/gas_icon");
@@ -217,7 +217,8 @@ public class TGCGame : Game
         _pixelTexture.SetData(new[] { Color.White });
         #endregion
 
-        _menuSeleccion = Content.Load<Texture2D>("Menus/menu_vehicle_selection");
+        _menuSelection = Content.Load<Texture2D>("Menus/menu_vehicle_selection");
+        _menuStart = Content.Load<Texture2D>("Menus/menu_start");
         _racingCarModel = Content.Load<Model>(ContentFolder3D + "Cars/RacingCarA/RacingCar");
         _cybertruckModel = Content.Load<Model>(ContentFolder3D + "Cars/Cybertruck/Cybertruck1");
         _f1CarModel = Content.Load<Model>(ContentFolder3D + "Cars/F1/F1");
@@ -373,6 +374,12 @@ public class TGCGame : Game
 
         switch (status)
         {
+            case ST_PRESENTACION:
+                if (keyboardState.IsKeyDown(Keys.Space))
+                {
+                    status = ST_SELECCION;
+                }
+                break;
             case ST_SELECCION:
                 #region MenuSeleccion
                 if (keyboardState.IsKeyDown(Keys.D1))
@@ -575,8 +582,11 @@ public class TGCGame : Game
 
         switch (status)
         {
+            case ST_PRESENTACION:
+                DrawMenu(_menuStart);
+                break;
             case ST_SELECCION:
-                DrawSelectionMenu();
+                DrawMenu(_menuSelection);
                 break;
             case ST_STAGE_1:
 
@@ -831,10 +841,10 @@ public class TGCGame : Game
         base.UnloadContent();
     }
 
-    public void DrawSelectionMenu()
+    public void DrawMenu(Texture2D menu)
     {
         _spriteBatch.Begin();
-        _spriteBatch.Draw(_menuSeleccion, new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width - 100, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height - 100), Color.White);
+        _spriteBatch.Draw(menu, new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width - 100, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height - 100), Color.White);
         _spriteBatch.End();
     }
 }
