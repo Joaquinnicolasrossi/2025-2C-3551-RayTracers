@@ -437,8 +437,19 @@ public class TGCGame : Game
                 // Moving the car
                 _carPosition -= _carDirection * _carSpeed * deltaTime;
 
-                _carWorld = Matrix.CreateScale(0.1f) * Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation))
-                            * Matrix.CreateTranslation(_carPosition);
+                if(_selectedCarModel == _f1CarModel)
+                {
+                    _carWorld = Matrix.CreateScale(0.1f)
+                                * Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation))
+                                * Matrix.CreateRotationY(MathHelper.ToRadians(90f)) // Orientation correction for the F1 car
+                                * Matrix.CreateTranslation(_carPosition);
+                }
+                else
+                {
+                    _carWorld = Matrix.CreateScale(0.1f)
+                                * Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation))
+                                * Matrix.CreateTranslation(_carPosition);
+                }
 
                 _carBoundingSphere.Center = _carPosition;
                 #endregion
