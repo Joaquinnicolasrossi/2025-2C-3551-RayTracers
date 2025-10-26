@@ -184,7 +184,7 @@ public class TGCGame : Game
         _roadWorld = Matrix.CreateScale(_roadWidth, 1f, _roadLength) * Matrix.CreateTranslation(new Vector3(0f, 0.5f, 0.00f)); // 0.02 para evitar z-fighting
 
         // Inicializo el auto en el principio de la ruta de modelo
-        _carPosition = new Vector3(0f, 0f, _roadLength);
+        _carPosition = new Vector3(0f, 0f, _roadLength - 200f);
 
         trackWorld = Matrix.CreateScale(0.66f) * Matrix.CreateRotationY(-MathHelper.PiOver2)
                                                       * Matrix.CreateTranslation(-455, 1f, 3200);
@@ -209,7 +209,7 @@ public class TGCGame : Game
 
         #region HUD
         _mainFont = Content.Load<SpriteFont>(ContentFolderSpriteFonts + "MainFont");
-       _gameOverFont = Content.Load<SpriteFont>(ContentFolderSpriteFonts + "GameOver");
+        _gameOverFont = Content.Load<SpriteFont>(ContentFolderSpriteFonts + "GameOver");
         _coinIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/coin_icon");
         _wrenchIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/wrench_icon");
         _gasIcon = Content.Load<Texture2D>(ContentFolderTextures + "HUD/gas_icon");
@@ -328,11 +328,29 @@ public class TGCGame : Game
             }
         }
 
-        // Creo collectibles en orden random
+        // Creo collectibles en orden random pero garantizando nafta cada 3 spawns
+        int collectibleCounter = 0;
         foreach (var spawnPoint in _collectibleSpawnPoints)
         {
-            var randomType = (CollectibleType)_random.Next(0, 3); // 0=Coin, 1=Gas, 2=Wrench
-            _collectibles.Add(new Collectible(randomType, spawnPoint));
+            CollectibleType collectibleType;
+            if (collectibleCounter >= 2)
+            {
+                collectibleType = CollectibleType.Gas;
+                collectibleCounter = 0;
+            }
+            else
+            {
+                collectibleType = (CollectibleType)_random.Next(0, 3); // 0=Coin, 1=Gas, 2=Wrench
+                if (collectibleType == CollectibleType.Gas)
+                {
+                    collectibleCounter = 0;
+                }
+                else
+                {
+                    collectibleCounter++;
+                }
+            }
+            _collectibles.Add(new Collectible(collectibleType, spawnPoint));
         }
 
         foreach (var spawnPoint in _obstacleSpawnPoints)
@@ -444,7 +462,7 @@ public class TGCGame : Game
                 // Moving the car
                 _carPosition -= _carDirection * _carSpeed * deltaTime;
 
-                if(_selectedCarModel == _f1CarModel)
+                if (_selectedCarModel == _f1CarModel)
                 {
                     _carWorld = Matrix.CreateScale(0.1f)
                                 * Matrix.CreateRotationY(MathHelper.ToRadians(_carRotation))
