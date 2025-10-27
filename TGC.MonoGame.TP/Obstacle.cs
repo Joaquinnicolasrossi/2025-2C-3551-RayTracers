@@ -33,7 +33,7 @@ namespace TGC.MonoGame.TP
             switch (Type)
             {
                 case ObstacleType.Cow:
-                    _scale = new Vector3(0.05f);
+                    _scale = new Vector3(0.04f);
                     break;
 
                 case ObstacleType.Deer:

@@ -59,7 +59,7 @@ namespace TGC.MonoGame.TP
                     break;
             }
 
-            BoundingSphere = new BoundingSphere(position, radius);
+            BoundingSphere = new BoundingSphere(Position, radius);
         }
 
         public void Update(GameTime gameTime)

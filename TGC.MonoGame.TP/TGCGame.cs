@@ -14,6 +14,9 @@ namespace TGC.MonoGame.TP;
 /// </summary>
 public class TGCGame : Game
 {
+
+    #region Variables del juego
+
     #region Paths
     public const string ContentFolder3D = "Models/";
     public const string ContentFolderEffects = "Effects/";
@@ -51,6 +54,7 @@ public class TGCGame : Game
     private Texture2D _wrenchIcon;
     private Texture2D _gasIcon;
     private Texture2D _pixelTexture;
+    private SpriteBatch _spriteBatch;
     #endregion
 
     #region Circuito
@@ -71,6 +75,7 @@ public class TGCGame : Game
     #endregion
 
     #region Modelos
+    private Color _selectedCarColor;
     private Model _selectedCarModel;
     private Model _racingCarModel;
     private Model _f1CarModel;
@@ -86,6 +91,16 @@ public class TGCGame : Game
     private Model _deerModel;
     private Model _goatModel;
     private Model _cowModel;
+
+    public enum TerrainType
+    {
+        Asphalt = 0,
+        Dirt = 1,
+        Snow = 2
+    }
+
+    private TerrainType _currentTerrain;
+    private Random _random = new Random();
     #endregion
 
     #region Matrices de mundo
@@ -114,23 +129,28 @@ public class TGCGame : Game
     private Texture2D _menuSelection;
     private Texture2D _menuStart;
     #endregion
+
+    #region Camara
     private readonly GraphicsDeviceManager _graphics;
     private Camera _camera;
-    private SpriteBatch _spriteBatch;
+    #endregion
 
+    #region Spawns
     private List<Vector3> _collectibleSpawnPoints = new List<Vector3>();
     private List<Collectible> _collectibles = new List<Collectible>();
     private List<Vector3> _obstacleSpawnPoints = new List<Vector3>();
     private List<Obstacle> _obstacles = new List<Obstacle>();
-    public enum TerrainType
-    {
-        Asphalt = 0,
-        Dirt = 1,
-        Snow = 2
-    }
+    #endregion
 
-    private TerrainType _currentTerrain;
-    private Random _random = new Random();
+    #region Modo debug
+    private Model _debugSphereModel;
+    private RasterizerState _solidRasterizerState;
+    private RasterizerState _wireframeRasterizerState;
+    private bool _isDebugModeEnabled = false;
+    private KeyboardState _previousKeyboardState;
+    #endregion
+
+    #endregion
 
     /// <summary>
     ///     Constructor del juego.
@@ -194,6 +214,15 @@ public class TGCGame : Game
         _carBoundingSphere.Center = _carPosition;
         _carBoundingSphere.Radius = CarBoundingSphereRadius;
 
+        _solidRasterizerState = new RasterizerState();
+        _wireframeRasterizerState = new RasterizerState
+        {
+            FillMode = FillMode.WireFrame, // Modo alambre
+            CullMode = CullMode.None       // Dibuja ambas caras
+        };
+
+        _previousKeyboardState = Keyboard.GetState();
+
         base.Initialize();
     }
 
@@ -217,6 +246,7 @@ public class TGCGame : Game
         _pixelTexture.SetData(new[] { Color.White });
         #endregion
 
+        #region Modelos
         _menuSelection = Content.Load<Texture2D>("Menus/menu_vehicle_selection");
         _menuStart = Content.Load<Texture2D>("Menus/menu_start");
         _racingCarModel = Content.Load<Model>(ContentFolder3D + "Cars/RacingCarA/RacingCar");
@@ -233,42 +263,13 @@ public class TGCGame : Game
         _cowModel = Content.Load<Model>(ContentFolder3D + "Animals/cow");
         _deerModel = Content.Load<Model>(ContentFolder3D + "Animals/deer");
         _goatModel = Content.Load<Model>(ContentFolder3D + "Animals/goat");
+        #endregion
 
+        #region Shaders
         // Cargo un efecto basico propio declarado en el Content pipeline.
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
         _basicShader = Content.Load<Effect>(ContentFolderEffects + "BasicShader");
         _grassShader = Content.Load<Effect>(ContentFolderEffects + "GrassShader");
-
-        switch (_currentTerrain)
-        {
-            case TerrainType.Asphalt:
-                // Load asphalt textures
-                _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Asphalt/OffRoad/grassTextureV2");
-                _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Asphalt/Road/asphaltColor");
-                MaxSpeed = 300f;
-                Acceleration = 100f;
-                BrakeDeceleration = 250f;
-                DriftFactor = 0.75f;
-                break;
-            case TerrainType.Dirt:
-                // Load dirt textures
-                _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/OffRoad/grassTextureV2");
-                _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/Road/dirtTexture");
-                MaxSpeed = 200f;
-                Acceleration = 80f;
-                BrakeDeceleration = 150f;
-                DriftFactor = 0.96f;
-                break;
-            case TerrainType.Snow:
-                // Load snow textures
-                _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/OffRoad/snowColor");
-                _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/Road/snowDirtColor");
-                MaxSpeed = 180f;
-                Acceleration = 70f;
-                BrakeDeceleration = 100f;
-                DriftFactor = 0.97f;
-                break;
-        }
 
         // Asigno el efecto que cargue a cada parte del mesh.
         ModelDrawingHelper.AttachEffectToModel(_racingCarModel, _basicShader);
@@ -285,11 +286,45 @@ public class TGCGame : Game
         ModelDrawingHelper.AttachEffectToModel(_cowModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_deerModel, _basicShader);
         ModelDrawingHelper.AttachEffectToModel(_goatModel, _basicShader);
+        #endregion
 
+        #region Terrenos
+        switch (_currentTerrain)
+        {
+            case TerrainType.Asphalt:
+                _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Asphalt/OffRoad/grassTextureV2");
+                _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Asphalt/Road/asphaltColor");
+                // MaxSpeed = 300f;
+                // Acceleration = 100f;
+                // BrakeDeceleration = 250f;
+                // DriftFactor = 0.75f;
+                break;
+            case TerrainType.Dirt:
+                _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/OffRoad/grassTextureV2");
+                _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/Road/dirtTexture");
+                // MaxSpeed = 200f;
+                // Acceleration = 80f;
+                // BrakeDeceleration = 150f;
+                // DriftFactor = 0.96f;
+                break;
+            case TerrainType.Snow:
+                _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/OffRoad/snowColor");
+                _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/Road/snowDirtColor");
+                // MaxSpeed = 180f;
+                // Acceleration = 70f;
+                // BrakeDeceleration = 100f;
+                // DriftFactor = 0.97f;
+                break;
+        }
+        #endregion
+
+        #region Mapa (quads)
         _floor = new QuadPrimitive(GraphicsDevice);
         _road = new QuadPrimitive(GraphicsDevice);
         _line = new QuadPrimitive(GraphicsDevice);
+        #endregion
 
+        #region Spawns
         // Spawn de objetos segun el nombre de los empties de road.fbx
         foreach (ModelBone bone in _trackModel.Bones)
         {
@@ -328,6 +363,19 @@ public class TGCGame : Game
             }
         }
 
+        SpawnCollectiblesAndObstacles();
+        #endregion
+
+        #region Debug
+        _debugSphereModel = Content.Load<Model>(ContentFolder3D + "Debug/SphereDebug");
+        ModelDrawingHelper.AttachEffectToModel(_debugSphereModel, _basicShader);
+        #endregion
+
+        base.LoadContent();
+    }
+
+    private void SpawnCollectiblesAndObstacles()
+    {
         // Creo collectibles en orden random pero garantizando nafta cada 3 spawns
         int collectibleCounter = 0;
         foreach (var spawnPoint in _collectibleSpawnPoints)
@@ -358,8 +406,6 @@ public class TGCGame : Game
             var randomType = (ObstacleType)_random.Next(0, 3); // 0=Cow, 1=Deer, 2=Goat
             _obstacles.Add(new Obstacle(randomType, spawnPoint));
         }
-
-        base.LoadContent();
     }
 
     /// <summary>
@@ -378,6 +424,13 @@ public class TGCGame : Game
         {
             //Exit of the game
             Exit();
+        }
+
+        // --- Lógica para activar/desactivar el modo Debug ---
+        if (keyboardState.IsKeyDown(Keys.F12) && _previousKeyboardState.IsKeyUp(Keys.F12))
+        {
+            // Si F12 está presionada AHORA pero NO estaba presionada en el frame anterior
+            _isDebugModeEnabled = !_isDebugModeEnabled; // (toggle)
         }
 
         if (_gameOver)
@@ -400,19 +453,37 @@ public class TGCGame : Game
                 break;
             case ST_SELECCION:
                 #region MenuSeleccion
-                if (keyboardState.IsKeyDown(Keys.D1))
+                if (keyboardState.IsKeyDown(Keys.D1)) // F1 Car
                 {
                     _selectedCarModel = _f1CarModel;
+                    _selectedCarColor = Color.Crimson;
+                    // Parámetros para el F1: Alta velocidad, alta aceleración, buen freno, poco drift (mucho agarre)
+                    MaxSpeed = 450f;
+                    Acceleration = 180f;
+                    BrakeDeceleration = 300f;
+                    DriftFactor = 0.85f;
                     status = ST_STAGE_1;
                 }
-                if (keyboardState.IsKeyDown(Keys.D2))
+                if (keyboardState.IsKeyDown(Keys.D2)) // Racing Car
                 {
                     _selectedCarModel = _racingCarModel;
+                    _selectedCarColor = Color.Blue;
+                    // Parámetros Equilibrados: Buena velocidad y aceleración, frenado decente, drift moderado
+                    MaxSpeed = 350f;
+                    Acceleration = 120f;
+                    BrakeDeceleration = 200f;
+                    DriftFactor = 0.92f;
                     status = ST_STAGE_1;
                 }
-                if (keyboardState.IsKeyDown(Keys.D3))
+                if (keyboardState.IsKeyDown(Keys.D3)) // Cybertruck
                 {
                     _selectedCarModel = _cybertruckModel;
+                    _selectedCarColor = Color.DarkGray;
+                    // Parámetros "Pesados": Menor velocidad y aceleración, frenado pobre, mucho drift (poco agarre)
+                    MaxSpeed = 250f;
+                    Acceleration = 80f;
+                    BrakeDeceleration = 150f;
+                    DriftFactor = 0.97f;
                     status = ST_STAGE_1;
                 }
                 #endregion
@@ -525,13 +596,14 @@ public class TGCGame : Game
                 }
                 break;
         }
+        _previousKeyboardState = keyboardState;
         _camera.Update(_carWorld, _carRotation);
         base.Update(gameTime);
     }
 
     private void CheckCollisions()
     {
-        const float FrontalCollisionThreshold = 0.85f; // Umbral para considerar un choque como frontal/trasero
+        const float FrontalCollisionThreshold = 0.95f; // Umbral para considerar un choque como frontal/trasero
 
         foreach (var obstacle in _obstacles)
         {
@@ -573,7 +645,7 @@ public class TGCGame : Game
         _wrenches = 0;
 
         // Resetear estado del auto
-        _carPosition = new Vector3(0f, 0f, _roadLength); // Posición inicial
+        _carPosition = new Vector3(0f, 0f, _roadLength - 200f);
         _carRotation = 0f;
         _carSpeed = 0f;
         _carDirection = Vector3.Forward;
@@ -582,20 +654,11 @@ public class TGCGame : Game
         _collectibles.Clear();
         _obstacles.Clear();
 
-        // Volver a crear los coleccionables y obstáculos con una nueva distribución aleatoria
-        foreach (var spawnPoint in _collectibleSpawnPoints)
-        {
-            var randomType = (CollectibleType)_random.Next(0, 3);
-            _collectibles.Add(new Collectible(randomType, spawnPoint));
-        }
+        // Vuelvo a spawnear objetos
+        SpawnCollectiblesAndObstacles();
 
-        foreach (var spawnPoint in _obstacleSpawnPoints)
-        {
-            var randomType = (ObstacleType)_random.Next(0, 3);
-            _obstacles.Add(new Obstacle(randomType, spawnPoint));
-        }
-
-        // Finalmente, salimos del estado de Game Over
+        // Estado del juego reiniciado a menu
+        status = ST_SELECCION;
         _gameOver = false;
     }
 
@@ -622,7 +685,7 @@ public class TGCGame : Game
                 _basicShader.Parameters["View"].SetValue(_camera.View);
                 _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
 
-                ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, Color.Blue, _basicShader);
+                ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _basicShader);
 
                 // Dibujar múltiples árboles a ambos lados del camino
                 float treeSpacing = 200f; // Espaciado entre árboles
@@ -730,7 +793,7 @@ public class TGCGame : Game
                                 ModelDrawingHelper.Draw(_coinModel, collectible.World, _camera.View, _camera.Projection, Color.Gold, _basicShader);
                                 break;
                             case CollectibleType.Gas:
-                                ModelDrawingHelper.Draw(_gasModel, collectible.World, _camera.View, _camera.Projection, Color.Red, _basicShader);
+                                ModelDrawingHelper.Draw(_gasModel, collectible.World, _camera.View, _camera.Projection, Color.DarkRed, _basicShader);
                                 break;
                             case CollectibleType.Wrench:
                                 ModelDrawingHelper.Draw(_wrenchModel, collectible.World, _camera.View, _camera.Projection, Color.LightGray, _basicShader);
@@ -757,6 +820,38 @@ public class TGCGame : Game
                             ModelDrawingHelper.Draw(_goatModel, obstacle.World, _camera.View, _camera.Projection, Color.LightGray, _basicShader);
                             break;
                     }
+                }
+                #endregion
+
+                #region Modo debug
+                if (_isDebugModeEnabled)
+                {
+                    #region Dibujado de Esferas de Debug
+                    GraphicsDevice.RasterizerState = _wireframeRasterizerState;
+
+                    // Dibujar la esfera del auto
+                    var carSphereWorld = Matrix.CreateScale(_carBoundingSphere.Radius) * Matrix.CreateTranslation(_carBoundingSphere.Center);
+                    ModelDrawingHelper.Draw(_debugSphereModel, carSphereWorld, _camera.View, _camera.Projection, Color.Blue, _basicShader);
+
+                    // Dibujar la esfera de cada coleccionable activo
+                    foreach (var collectible in _collectibles)
+                    {
+                        if (collectible.IsActive)
+                        {
+                            var collectibleSphereWorld = Matrix.CreateScale(collectible.BoundingSphere.Radius) * Matrix.CreateTranslation(collectible.BoundingSphere.Center);
+                            ModelDrawingHelper.Draw(_debugSphereModel, collectibleSphereWorld, _camera.View, _camera.Projection, Color.Yellow, _basicShader);
+                        }
+                    }
+
+                    // Dibujar la esfera de cada obstáculo
+                    foreach (var obstacle in _obstacles)
+                    {
+                        var obstacleSphereWorld = Matrix.CreateScale(obstacle.BoundingSphere.Radius) * Matrix.CreateTranslation(obstacle.BoundingSphere.Center);
+                        ModelDrawingHelper.Draw(_debugSphereModel, obstacleSphereWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
+                    }
+
+                    GraphicsDevice.RasterizerState = _solidRasterizerState;
+                    #endregion
                 }
                 #endregion
 
