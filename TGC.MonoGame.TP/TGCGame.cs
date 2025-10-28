@@ -351,7 +351,9 @@ public class TGCGame : Game
             {
                 Vector3 pos = bone.Transform.Translation;
                 Matrix piedraBase = Matrix.CreateScale(40f);
-                Matrix world = piedraBase * Matrix.CreateTranslation(pos) * trackWorld;
+                float verticalOffset = 20f;
+                Matrix liftMatrix = Matrix.CreateTranslation(Vector3.Up * verticalOffset);
+                Matrix world = piedraBase * liftMatrix * Matrix.CreateTranslation(pos) * trackWorld;
                 _environmentObjects.Add(new EnvironmentObject(EnvironmentObjectType.Rock, world));
             }
             else if (bone.Name.StartsWith("planta"))

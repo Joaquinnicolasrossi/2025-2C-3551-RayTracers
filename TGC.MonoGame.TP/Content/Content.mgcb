@@ -408,7 +408,55 @@
 /processorParam:Scale=1
 /processorParam:SwapWindingOrder=False
 /processorParam:TextureFormat=Compressed
-/build:Models/Rocks/Rock1/Rockfbx.fbx
+/build:Models/Rocks/Rock1/Rockfbx.fbx;Models/Rocks/Rock1/Rockfbx
+
+#begin Models/Rocks/Rock1/RockTexture.jpg
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Models/Rocks/Rock1/RockTexture.jpg;Models/Rocks/Rock1/RockTexture
+
+#begin Models/Rocks/Rock2/initialShadingGroup_Base_Color.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Models/Rocks/Rock2/initialShadingGroup_Base_Color.png;Models/Rocks/Rock2/initialShadingGroup_Base_Color
+
+#begin Models/Rocks/Rock2/rock_normals.jpg
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Models/Rocks/Rock2/rock_normals.jpg;Models/Rocks/Rock2/rock_normals
+
+#begin Models/Rocks/Rock2/rock_occlusion.jpg
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Models/Rocks/Rock2/rock_occlusion.jpg;Models/Rocks/Rock2/rock_occlusion
 
 #begin Models/Rocks/Rock2/rock.fbx
 /importer:FbxImporter
@@ -427,7 +475,7 @@
 /processorParam:Scale=1
 /processorParam:SwapWindingOrder=False
 /processorParam:TextureFormat=Compressed
-/build:Models/Rocks/Rock2/rock.fbx
+/build:Models/Rocks/Rock2/rock.fbx;Models/Rocks/Rock2/rock
 
 #begin Models/Track/road.fbx
 /importer:FbxImporter
