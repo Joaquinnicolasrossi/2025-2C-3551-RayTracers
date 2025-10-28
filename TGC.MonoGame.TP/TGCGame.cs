@@ -38,16 +38,20 @@ public class TGCGame : Game
     private float MaxSpeed = 300f;
     private float Acceleration = 100f;
     private float BrakeDeceleration = 200f;
-    private const float TurnSpeed = 60f;
+    private const float BaseTurnSpeed = 60f;
+    private float _currentTurnSpeedFactor = 1f;
     private float DriftFactor = 0.95f; // 0 (no drift) > DriftFactor > 1 (no adhesion)
     private Vector3 _carDirection = Vector3.Forward;
+
+    private float _maxHealth = 100f;
+    private float _fuelConsumptionRate = 5f;
     #endregion
 
     #region HUD
     private int _score = 0;
     private float _fuel = 100f;
     private int _wrenches = 0;
-    private float _health = 100f;
+    private float _health = 100f; // representa vida actual
     private bool _gameOver = false;
     private SpriteFont _gameOverFont;
     private SpriteFont _mainFont;
@@ -149,6 +153,7 @@ public class TGCGame : Game
     private RasterizerState _wireframeRasterizerState;
     private bool _isDebugModeEnabled = false;
     private KeyboardState _previousKeyboardState;
+    private const float DebugSphereVisualCorrection = 0.5f;
     #endregion
 
     #region Audio
@@ -483,19 +488,22 @@ public class TGCGame : Game
                 }
 
                 #region MenuSeleccion
+
+                bool carSelected = false;
+
                 if (keyboardState.IsKeyDown(Keys.D1)) // F1 Car
                 {
                     _selectedCarModel = _f1CarModel;
                     _selectedCarColor = Color.Crimson;
-                    // Parámetros para el F1: Alta velocidad, alta aceleración, buen freno, poco drift (mucho agarre)
+                    // Parámetros para el F1: Rápido, ágil, poca vida, consume mucho combustible
                     MaxSpeed = 450f;
                     Acceleration = 180f;
                     BrakeDeceleration = 300f;
                     DriftFactor = 0.85f;
-
-                    MediaPlayer.Stop();
-                    MediaPlayer.Play(_gameplaySong);
-                    status = ST_STAGE_1;
+                    _maxHealth = 100f;
+                    _fuelConsumptionRate = 10f;
+                    _currentTurnSpeedFactor = 1.3f;
+                    carSelected = true;
                 }
                 if (keyboardState.IsKeyDown(Keys.D2)) // Racing Car
                 {
@@ -506,10 +514,10 @@ public class TGCGame : Game
                     Acceleration = 120f;
                     BrakeDeceleration = 200f;
                     DriftFactor = 0.92f;
-
-                    MediaPlayer.Stop();
-                    MediaPlayer.Play(_gameplaySong);
-                    status = ST_STAGE_1;
+                    _maxHealth = 150f;
+                    _fuelConsumptionRate = 6f;
+                    _currentTurnSpeedFactor = 1.0f;
+                    carSelected = true;
                 }
                 if (keyboardState.IsKeyDown(Keys.D3)) // Cybertruck
                 {
@@ -520,23 +528,33 @@ public class TGCGame : Game
                     Acceleration = 80f;
                     BrakeDeceleration = 150f;
                     DriftFactor = 0.97f;
+                    _maxHealth = 200f;
+                    _fuelConsumptionRate = 3f;
+                    _currentTurnSpeedFactor = 0.7f;
+                    carSelected = true;
+                }
 
+                if (carSelected)
+                {
+                    _health = _maxHealth; // Inicia con la vida máxima del auto elegido
+                    _fuel = 100f;         // Inicia con el tanque lleno
                     MediaPlayer.Stop();
                     MediaPlayer.Play(_gameplaySong);
                     status = ST_STAGE_1;
                 }
+
                 #endregion
                 break;
             case ST_STAGE_1:
                 #region Logica del juego
 
                 // Consumo de nafta
-                _fuel -= 5f * deltaTime;
+                _fuel -= _fuelConsumptionRate * deltaTime;
 
                 // Reparacion
-                if (keyboardState.IsKeyDown(Keys.R) && _wrenches > 0 && _health < 100f)
+                if (keyboardState.IsKeyDown(Keys.R) && _wrenches > 0 && _health < _maxHealth)
                 {
-                    _health = 100f;
+                    _health = _maxHealth;
                     _wrenches--;
                     _repairSound?.Play();
                 }
@@ -559,10 +577,11 @@ public class TGCGame : Game
 
                 // Rotation
                 float turn = 0f;
+                float actualTurnSpeed = BaseTurnSpeed * _currentTurnSpeedFactor;
                 if (keyboardState.IsKeyDown(Keys.A))
-                    turn += TurnSpeed * deltaTime;
+                    turn += actualTurnSpeed * deltaTime;
                 if (keyboardState.IsKeyDown(Keys.D))
-                    turn -= TurnSpeed * deltaTime;
+                    turn -= actualTurnSpeed * deltaTime;
 
                 _carRotation += turn;
 
@@ -678,6 +697,8 @@ public class TGCGame : Game
                     _crashLateralSound?.Play();
                 }
 
+                if (_health < 0f) _health = 0f;
+
                 break;
             }
         }
@@ -688,7 +709,6 @@ public class TGCGame : Game
         // Resetear estado del jugador
         _score = 0;
         _fuel = 100f;
-        _health = 100f;
         _wrenches = 0;
 
         // Resetear estado del auto
@@ -881,7 +901,7 @@ public class TGCGame : Game
                     GraphicsDevice.RasterizerState = _wireframeRasterizerState;
 
                     // Dibujar la esfera del auto
-                    var carSphereWorld = Matrix.CreateScale(_carBoundingSphere.Radius) * Matrix.CreateTranslation(_carBoundingSphere.Center);
+                    var carSphereWorld = Matrix.CreateScale(_carBoundingSphere.Radius * DebugSphereVisualCorrection) * Matrix.CreateTranslation(_carBoundingSphere.Center);
                     ModelDrawingHelper.Draw(_debugSphereModel, carSphereWorld, _camera.View, _camera.Projection, Color.Blue, _basicShader);
 
                     // Dibujar la esfera de cada coleccionable activo
@@ -889,7 +909,7 @@ public class TGCGame : Game
                     {
                         if (collectible.IsActive)
                         {
-                            var collectibleSphereWorld = Matrix.CreateScale(collectible.BoundingSphere.Radius) * Matrix.CreateTranslation(collectible.BoundingSphere.Center);
+                            var collectibleSphereWorld = Matrix.CreateScale(collectible.BoundingSphere.Radius * DebugSphereVisualCorrection) * Matrix.CreateTranslation(collectible.BoundingSphere.Center);
                             ModelDrawingHelper.Draw(_debugSphereModel, collectibleSphereWorld, _camera.View, _camera.Projection, Color.Yellow, _basicShader);
                         }
                     }
@@ -897,7 +917,7 @@ public class TGCGame : Game
                     // Dibujar la esfera de cada obstáculo
                     foreach (var obstacle in _obstacles)
                     {
-                        var obstacleSphereWorld = Matrix.CreateScale(obstacle.BoundingSphere.Radius) * Matrix.CreateTranslation(obstacle.BoundingSphere.Center);
+                        var obstacleSphereWorld = Matrix.CreateScale(obstacle.BoundingSphere.Radius * DebugSphereVisualCorrection) * Matrix.CreateTranslation(obstacle.BoundingSphere.Center);
                         ModelDrawingHelper.Draw(_debugSphereModel, obstacleSphereWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
                     }
 
