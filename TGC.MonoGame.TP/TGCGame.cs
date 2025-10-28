@@ -56,6 +56,7 @@ public class TGCGame : Game
 
     #region HUD
     private int _score = 0;
+    private float _scoreAccumulator = 0f;
     private float _fuel = 100f;
     private int _wrenches = 0;
     private float _health = 100f; // representa vida actual
@@ -152,6 +153,17 @@ public class TGCGame : Game
     private List<EnvironmentObject> _environmentObjects = new List<EnvironmentObject>();
     #endregion
 
+    #region Traffic
+    private List<TrafficCar> _trafficCars = new List<TrafficCar>();
+    private float _trafficSpawnTimer = 0f;
+    private const float TrafficSpawnInterval = 3.0f;
+    private const float TrafficCarSpeed = 150f;
+    // (adjust X values for lanes, Z should be far ahead)
+    private Vector3 _trafficSpawnPointLeft = new Vector3(-30f, 0f, -2500f); // Adjust Z based on track length/view distance
+    private Vector3 _trafficSpawnPointRight = new Vector3(30f, 0f, -2500f);
+    private const float TrafficDespawnZ = 4000f; // Z position beyond which cars are removed (adjust based on track)
+    #endregion
+
     #region Modo debug
     private Model _debugSphereModel;
     private RasterizerState _solidRasterizerState;
@@ -194,6 +206,173 @@ public class TGCGame : Game
         // Hace que el mouse sea visible.
         IsMouseVisible = true;
     }
+
+    #region Metodos privados
+    /// <summary>
+    /// Procesa la respuesta a una colisión detectada con un objeto.
+    /// </summary>
+    /// <param name="otherSphere">La BoundingSphere del objeto con el que se colisionó.</param>
+    /// <param name="isFatalOnFrontal">Si true, un choque frontal/trasero causa Game Over instantáneo.</param>
+    /// <returns>True si se procesó una colisión, False en caso contrario.</returns>
+    private bool HandleCollisionResponse(BoundingSphere otherSphere, bool isFatalOnFrontal)
+    {
+        // 1. Comprobación rápida de distancia (Optimización)
+        if (Vector3.DistanceSquared(_carBoundingSphere.Center, otherSphere.Center) >
+            (_carBoundingSphere.Radius + otherSphere.Radius) * (_carBoundingSphere.Radius + otherSphere.Radius))
+        {
+            return false;
+        }
+
+        // 2. Comprobación de Intersección
+        if (_carBoundingSphere.Intersects(otherSphere))
+        {
+            _collidedLastFrame = true;
+
+            // 3. Calcular Dirección y Ángulo
+            Vector3 collisionDirection = Vector3.Normalize(otherSphere.Center - _carBoundingSphere.Center);
+            _lastCollisionNormal = collisionDirection; // Para modo debug
+            float dotProduct = Vector3.Dot(_carDirection, collisionDirection);
+
+            const float FrontalCollisionThreshold = 0.8f;
+            const float BaseDamage = 30f; // Daño base lateral
+
+            // 4. Determinar Tipo de Choque y Aplicar Consecuencias
+            if (Math.Abs(dotProduct) > FrontalCollisionThreshold)
+            {
+                // Frontal / Trasero
+                if (isFatalOnFrontal)
+                {
+                    _health = 0f; // Muerte instantánea
+                }
+                _crashFrontalSound?.Play();
+            }
+            else
+            {
+                // Lateral
+                _health -= BaseDamage;
+                _carSpeed *= 0.5f;
+                _crashLateralSound?.Play(1.0f, 0.0f, 0.0f);
+            }
+
+            // 5. Activar i-frames
+            _isInvincible = true;
+            _invincibilityTimer = InvincibilityDuration;
+
+            // 6. Asegurar que la vida no sea negativa
+            if (_health < 0f) _health = 0f;
+
+            return true; // Se procesó la colisión
+        }
+
+        return false; // No hubo intersección
+    }
+
+    private void CheckCollisions()
+    {
+        if (_isInvincible)
+            return;
+
+        _collidedLastFrame = false;
+        _lastCollisionNormal = Vector3.Zero;
+
+        // Revisar colisiones con Tráfico
+        foreach (var trafficCar in _trafficCars)
+        {
+            if (HandleCollisionResponse(trafficCar.BoundingSphere, true))
+                return;
+        }
+
+        // Revisar colisiones con Obstáculos (Animales)
+        foreach (var obstacle in _obstacles)
+        {
+            if (HandleCollisionResponse(obstacle.BoundingSphere, true))
+                return;
+        }
+
+        // Revisar colisiones con Entorno
+        foreach (var envObject in _environmentObjects)
+        {
+            bool isHardObject = envObject.Type == EnvironmentObjectType.House || envObject.Type == EnvironmentObjectType.Rock;
+
+            if (HandleCollisionResponse(envObject.BoundingSphere, isHardObject))
+                return;
+        }
+    }
+
+    private void SpawnCollectiblesAndObstacles()
+    {
+        // Creo collectibles en orden random pero garantizando nafta cada 3 spawns
+        int collectibleCounter = 0;
+        foreach (var spawnPoint in _collectibleSpawnPoints)
+        {
+            CollectibleType collectibleType;
+            if (collectibleCounter >= 2)
+            {
+                collectibleType = CollectibleType.Gas;
+                collectibleCounter = 0;
+            }
+            else
+            {
+                collectibleType = (CollectibleType)_random.Next(0, 3); // 0=Coin, 1=Gas, 2=Wrench
+                if (collectibleType == CollectibleType.Gas)
+                {
+                    collectibleCounter = 0;
+                }
+                else
+                {
+                    collectibleCounter++;
+                }
+            }
+            _collectibles.Add(new Collectible(collectibleType, spawnPoint));
+        }
+
+        foreach (var spawnPoint in _obstacleSpawnPoints)
+        {
+            var randomType = (ObstacleType)_random.Next(0, 3); // 0=Cow, 1=Deer, 2=Goat
+            _obstacles.Add(new Obstacle(randomType, spawnPoint));
+        }
+    }
+
+    private void RestartGame()
+    {
+        // Resetear estado del jugador
+        _score = 0;
+        _fuel = 100f;
+        _wrenches = 0;
+
+        // Resetear estado del auto
+        _carPosition = new Vector3(0f, 0f, _roadLength - 200f);
+        _carRotation = 0f;
+        _carSpeed = 0f;
+        _carDirection = Vector3.Forward;
+        _isInvincible = false;
+        _invincibilityTimer = 0f;
+
+        // Limpiar listas de objetos
+        _collectibles.Clear();
+        _obstacles.Clear();
+        _trafficCars.Clear();
+
+        // Vuelvo a spawnear objetos
+        SpawnCollectiblesAndObstacles();
+
+        // Frenar musica
+        MediaPlayer.Stop();
+        MediaPlayer.Play(_menuSong);
+
+        // Estado del juego reiniciado a menu
+        status = ST_PRESENTACION;
+        _gameOver = false;
+    }
+
+    private void DrawMenu(Texture2D menu)
+    {
+        _spriteBatch.Begin();
+        _spriteBatch.Draw(menu, new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width - 100, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height - 100), Color.White);
+        _spriteBatch.End();
+    }
+
+    #endregion
 
     /// <summary>
     ///     Se llama una sola vez, al principio cuando se ejecuta el ejemplo.
@@ -402,47 +581,14 @@ public class TGCGame : Game
         _gameOverSound = Content.Load<SoundEffect>(ContentFolderSounds + "game_over");
 
         // Para que este en loop la musica
-        MediaPlayer.IsRepeating = true;
         MediaPlayer.Play(_menuSong);
+        MediaPlayer.Volume = 0.5f;
+        MediaPlayer.IsRepeating = true;
         #endregion
 
         LineDrawer.LoadContent(GraphicsDevice);
 
         base.LoadContent();
-    }
-
-    private void SpawnCollectiblesAndObstacles()
-    {
-        // Creo collectibles en orden random pero garantizando nafta cada 3 spawns
-        int collectibleCounter = 0;
-        foreach (var spawnPoint in _collectibleSpawnPoints)
-        {
-            CollectibleType collectibleType;
-            if (collectibleCounter >= 2)
-            {
-                collectibleType = CollectibleType.Gas;
-                collectibleCounter = 0;
-            }
-            else
-            {
-                collectibleType = (CollectibleType)_random.Next(0, 3); // 0=Coin, 1=Gas, 2=Wrench
-                if (collectibleType == CollectibleType.Gas)
-                {
-                    collectibleCounter = 0;
-                }
-                else
-                {
-                    collectibleCounter++;
-                }
-            }
-            _collectibles.Add(new Collectible(collectibleType, spawnPoint));
-        }
-
-        foreach (var spawnPoint in _obstacleSpawnPoints)
-        {
-            var randomType = (ObstacleType)_random.Next(0, 3); // 0=Cow, 1=Deer, 2=Goat
-            _obstacles.Add(new Obstacle(randomType, spawnPoint));
-        }
     }
 
     /// <summary>
@@ -493,11 +639,6 @@ public class TGCGame : Game
                 }
                 break;
             case ST_SELECCION:
-                if (MediaPlayer.State != MediaState.Playing || MediaPlayer.Queue.ActiveSong != _menuSong)
-                {
-                    MediaPlayer.Play(_menuSong);
-                }
-
                 #region MenuSeleccion
 
                 bool carSelected = false;
@@ -512,7 +653,7 @@ public class TGCGame : Game
                     BrakeDeceleration = 300f;
                     DriftFactor = 0.85f;
                     _maxHealth = 100f;
-                    _fuelConsumptionRate = 10f;
+                    _fuelConsumptionRate = 7f;
                     _currentTurnSpeedFactor = 1.3f;
                     carSelected = true;
                 }
@@ -526,7 +667,7 @@ public class TGCGame : Game
                     BrakeDeceleration = 200f;
                     DriftFactor = 0.92f;
                     _maxHealth = 150f;
-                    _fuelConsumptionRate = 6f;
+                    _fuelConsumptionRate = 5f;
                     _currentTurnSpeedFactor = 1.0f;
                     carSelected = true;
                 }
@@ -580,6 +721,16 @@ public class TGCGame : Game
                 else
                 {
                     _carVisibleDuringInvincibility = true;
+                }
+
+                // Score
+                _scoreAccumulator += 5f * deltaTime; // 1 punto por segundo
+
+                if (_scoreAccumulator >= 1f)
+                {
+                    int pointsToAdd = (int)_scoreAccumulator;
+                    _score += pointsToAdd;
+                    _scoreAccumulator -= pointsToAdd;
                 }
 
                 // Consumo de nafta
@@ -644,6 +795,36 @@ public class TGCGame : Game
                 _carBoundingSphere.Center = _carPosition;
                 #endregion
 
+                #region Trafico
+
+                // Logica de spawn
+                _trafficSpawnTimer += deltaTime;
+                if (_trafficSpawnTimer >= TrafficSpawnInterval)
+                {
+                    _trafficSpawnTimer = 0f;
+
+                    Model chosenModel;
+                    int modelChoice = _random.Next(0, 3);
+                    if (modelChoice == 0) chosenModel = _f1CarModel;
+                    else if (modelChoice == 1) chosenModel = _racingCarModel;
+                    else chosenModel = _cybertruckModel;
+
+                    Vector3 spawnPos = (_random.Next(0, 2) == 0) ? _trafficSpawnPointLeft : _trafficSpawnPointRight;
+
+                    _trafficCars.Add(new TrafficCar(chosenModel, spawnPos, TrafficCarSpeed));
+                }
+
+                // Logica de update y remove
+                for (int i = _trafficCars.Count - 1; i >= 0; i--)
+                {
+                    _trafficCars[i].Update(deltaTime);
+                    if (_trafficCars[i].Position.Z > TrafficDespawnZ)
+                    {
+                        _trafficCars.RemoveAt(i);
+                    }
+                }
+                #endregion
+
                 #region Coleccionables
                 // Animacion de los coleccionables
                 foreach (var collectible in _collectibles)
@@ -698,122 +879,6 @@ public class TGCGame : Game
         _previousKeyboardState = keyboardState;
         _camera.Update(_carWorld, _carRotation);
         base.Update(gameTime);
-    }
-
-    private void CheckCollisions()
-    {
-        if (_isInvincible) // si estoy en i-frame
-        {
-            return;
-        }
-
-        const float FrontalCollisionThreshold = 0.9f; // Umbral para considerar un choque como frontal/trasero
-        _collidedLastFrame = false;
-        _lastCollisionNormal = Vector3.Zero;
-        const float LateralDamageAmount = 40f;
-
-        if (!_collidedLastFrame)
-        {
-            foreach (var obstacle in _obstacles)
-            {
-                if (_carBoundingSphere.Intersects(obstacle.BoundingSphere))
-                {
-                    _collidedLastFrame = true;
-                    // Vector que va desde el centro del auto hacia el obstáculo
-                    Vector3 collisionDirection = Vector3.Normalize(obstacle.BoundingSphere.Center - _carBoundingSphere.Center);
-                    _lastCollisionNormal = collisionDirection;
-
-                    // El producto punto nos dice qué tan alineados están los vectores.
-                    // Si es cercano a 1 (o -1), el choque es frontal (o trasero).
-                    // Si es cercano a 0, el choque es lateral.
-                    float dotProduct = Vector3.Dot(_carDirection, collisionDirection);
-
-                    if (Math.Abs(dotProduct) > FrontalCollisionThreshold)
-                    {
-                        // CHOQUE FRONTAL O TRASERO = DAÑO TOTAL
-                        _health = 0f;
-                        _crashFrontalSound?.Play();
-                    }
-                    else
-                    {
-                        // CHOQUE LATERAL = DAÑO PARCIAL
-                        _health -= LateralDamageAmount;
-
-                        // Efecto de rebote simple
-                        _carSpeed *= 0.5f;
-                        _crashLateralSound?.Play();
-                    }
-
-                    _isInvincible = true;
-                    _invincibilityTimer = InvincibilityDuration;
-
-                    if (_health < 0f) _health = 0f;
-                    return;
-                }
-            }
-
-            foreach (var envObject in _environmentObjects)
-            {
-                if (_carBoundingSphere.Intersects(envObject.BoundingSphere))
-                {
-                    _collidedLastFrame = true;
-                    // Solo las casas y rocas causan colisión grave por ahora
-                    if (envObject.Type == EnvironmentObjectType.House || envObject.Type == EnvironmentObjectType.Rock)
-                    {
-                        Vector3 collisionDirection = Vector3.Normalize(envObject.BoundingSphere.Center - _carBoundingSphere.Center);
-                        float dotProduct = Vector3.Dot(_carDirection, collisionDirection);
-
-                        if (Math.Abs(dotProduct) > FrontalCollisionThreshold)
-                        {
-                            // CHOQUE FRONTAL = GAME OVER INSTANTÁNEO
-                            _health = 0f;
-                            _crashFrontalSound?.Play();
-                        }
-                    }
-                    else // Planta o arbol
-                    {
-                        _health -= LateralDamageAmount;
-                        _carSpeed *= 0.5f; // Reduce velocidad
-                        _crashLateralSound?.Play();
-                    }
-                    _isInvincible = true;
-                    _invincibilityTimer = InvincibilityDuration;
-
-                    if (_health < 0f) _health = 0f;
-                    return;
-                }
-            }
-
-        }
-    }
-
-    private void RestartGame()
-    {
-        // Resetear estado del jugador
-        _score = 0;
-        _fuel = 100f;
-        _wrenches = 0;
-
-        // Resetear estado del auto
-        _carPosition = new Vector3(0f, 0f, _roadLength - 200f);
-        _carRotation = 0f;
-        _carSpeed = 0f;
-        _carDirection = Vector3.Forward;
-
-        // Limpiar listas de objetos
-        _collectibles.Clear();
-        _obstacles.Clear();
-
-        // Vuelvo a spawnear objetos
-        SpawnCollectiblesAndObstacles();
-
-        // Frenar musica
-        MediaPlayer.Stop();
-        MediaPlayer.Play(_menuSong);
-
-        // Estado del juego reiniciado a menu
-        status = ST_PRESENTACION;
-        _gameOver = false;
     }
 
     /// <summary>
@@ -941,6 +1006,7 @@ public class TGCGame : Game
 
                 #endregion
 
+                #region Road original
                 _basicShader.Parameters["World"].SetValue(_roadWorld);
                 _basicShader.Parameters["UseTexture"].SetValue(1f);
                 _basicShader.Parameters["MainTexture"].SetValue(_roadTexture);
@@ -958,6 +1024,7 @@ public class TGCGame : Game
 
 
                 ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, _roadTexture, _basicShader);
+                #endregion
 
                 #region Coleccionables
                 foreach (var collectible in _collectibles)
@@ -1005,6 +1072,16 @@ public class TGCGame : Game
                 }
                 #endregion
 
+                #region Trafico
+                foreach (var trafficCar in _trafficCars)
+                {
+                    if (!frustum.Intersects(trafficCar.BoundingSphere))
+                        continue;
+
+                    ModelDrawingHelper.Draw(trafficCar.CarModel, trafficCar.World, _camera.View, _camera.Projection, Color.Magenta, _basicShader);
+                }
+                #endregion
+
                 #region Modo debug
                 if (_debugModeEnabled)
                 {
@@ -1036,9 +1113,19 @@ public class TGCGame : Game
                     {
                         if (frustum.Intersects(envObject.BoundingSphere))
                         {
-                            var envSphereWorld = Matrix.CreateScale(envObject.BoundingSphere.Radius /* * debugSphereCorrectionFactor */)
+                            var envSphereWorld = Matrix.CreateScale(envObject.BoundingSphere.Radius * DebugSphereVisualCorrection)
                                                   * Matrix.CreateTranslation(envObject.BoundingSphere.Center);
                             ModelDrawingHelper.Draw(_debugSphereModel, envSphereWorld, _camera.View, _camera.Projection, Color.Magenta, _basicShader);
+                        }
+                    }
+
+                    foreach (var trafficCar in _trafficCars)
+                    {
+                        if (frustum.Intersects(trafficCar.BoundingSphere))
+                        {
+                            var trafficSphereWorld = Matrix.CreateScale(trafficCar.BoundingSphere.Radius * DebugSphereVisualCorrection)
+                                                      * Matrix.CreateTranslation(trafficCar.BoundingSphere.Center);
+                            ModelDrawingHelper.Draw(_debugSphereModel, trafficSphereWorld, _camera.View, _camera.Projection, Color.Cyan, _basicShader);
                         }
                     }
 
@@ -1169,12 +1256,5 @@ public class TGCGame : Game
         Content.Unload();
 
         base.UnloadContent();
-    }
-
-    public void DrawMenu(Texture2D menu)
-    {
-        _spriteBatch.Begin();
-        _spriteBatch.Draw(menu, new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width - 100, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height - 100), Color.White);
-        _spriteBatch.End();
     }
 }

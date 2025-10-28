@@ -15,7 +15,7 @@ namespace TGC.MonoGame.TP
         public EnvironmentObjectType Type { get; private set; }
         public Matrix World { get; private set; }
         public BoundingSphere BoundingSphere { get; private set; }
-        private const float HouseRadius = 150f;
+        private const float HouseRadius = 120f;
         private const float TreeRadius = 2f;
         private const float RockRadius = 20f;
         private const float PlantRadius = 10f;
