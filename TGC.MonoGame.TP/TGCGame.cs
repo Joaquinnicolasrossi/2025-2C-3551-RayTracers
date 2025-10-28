@@ -1,9 +1,10 @@
 ﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Media;
 using System;
 using System.Collections.Generic;
-using TGC.MonoGame.TP.Zero;
 
 namespace TGC.MonoGame.TP;
 
@@ -150,6 +151,18 @@ public class TGCGame : Game
     private KeyboardState _previousKeyboardState;
     #endregion
 
+    #region Audio
+    private Song _menuSong;
+    private Song _gameplaySong;
+    private SoundEffect _collectCoinSound;
+    private SoundEffect _collectGasSound;
+    private SoundEffect _collectWrenchSound;
+    private SoundEffect _repairSound;
+    private SoundEffect _crashLateralSound;
+    private SoundEffect _crashFrontalSound;
+    private SoundEffect _gameOverSound;
+    #endregion
+
     #endregion
 
     /// <summary>
@@ -177,14 +190,6 @@ public class TGCGame : Game
     protected override void Initialize()
     {
         // La logica de inicializacion que no depende del contenido se recomienda poner en este metodo.
-
-        // Apago el backface culling.
-        // Esto se hace por un problema en el diseno del modelo del logo de la materia.
-        // Una vez que empiecen su juego, esto no es mas necesario y lo pueden sacar.
-        // var rasterizerState = new RasterizerState();
-        // rasterizerState.CullMode = CullMode.None;
-        // GraphicsDevice.RasterizerState = rasterizerState;
-        // Seria hasta aca.
 
         // Inicializo la camara
         _camera = new Camera(GraphicsDevice.Viewport.AspectRatio, 150f, 700f, -30f);
@@ -371,6 +376,22 @@ public class TGCGame : Game
         ModelDrawingHelper.AttachEffectToModel(_debugSphereModel, _basicShader);
         #endregion
 
+        #region Audio
+        _menuSong = Content.Load<Song>(ContentFolderMusic + "menu_music");
+        _gameplaySong = Content.Load<Song>(ContentFolderMusic + "gameplay_music");
+        _collectCoinSound = Content.Load<SoundEffect>(ContentFolderSounds + "collect_coin");
+        _collectGasSound = Content.Load<SoundEffect>(ContentFolderSounds + "collect_gas");
+        _collectWrenchSound = Content.Load<SoundEffect>(ContentFolderSounds + "collect_wrench");
+        _repairSound = Content.Load<SoundEffect>(ContentFolderSounds + "repair");
+        _crashLateralSound = Content.Load<SoundEffect>(ContentFolderSounds + "crash_lateral");
+        _crashFrontalSound = Content.Load<SoundEffect>(ContentFolderSounds + "crash_frontal");
+        _gameOverSound = Content.Load<SoundEffect>(ContentFolderSounds + "game_over");
+
+        // Para que este en loop la musica
+        MediaPlayer.IsRepeating = true;
+        MediaPlayer.Play(_menuSong);
+        #endregion
+
         base.LoadContent();
     }
 
@@ -446,12 +467,21 @@ public class TGCGame : Game
         switch (status)
         {
             case ST_PRESENTACION:
+                if (MediaPlayer.State != MediaState.Playing || MediaPlayer.Queue.ActiveSong != _menuSong)
+                {
+                    MediaPlayer.Play(_menuSong);
+                }
                 if (keyboardState.IsKeyDown(Keys.Space))
                 {
                     status = ST_SELECCION;
                 }
                 break;
             case ST_SELECCION:
+                if (MediaPlayer.State != MediaState.Playing || MediaPlayer.Queue.ActiveSong != _menuSong)
+                {
+                    MediaPlayer.Play(_menuSong);
+                }
+
                 #region MenuSeleccion
                 if (keyboardState.IsKeyDown(Keys.D1)) // F1 Car
                 {
@@ -462,6 +492,9 @@ public class TGCGame : Game
                     Acceleration = 180f;
                     BrakeDeceleration = 300f;
                     DriftFactor = 0.85f;
+
+                    MediaPlayer.Stop();
+                    MediaPlayer.Play(_gameplaySong);
                     status = ST_STAGE_1;
                 }
                 if (keyboardState.IsKeyDown(Keys.D2)) // Racing Car
@@ -473,6 +506,9 @@ public class TGCGame : Game
                     Acceleration = 120f;
                     BrakeDeceleration = 200f;
                     DriftFactor = 0.92f;
+
+                    MediaPlayer.Stop();
+                    MediaPlayer.Play(_gameplaySong);
                     status = ST_STAGE_1;
                 }
                 if (keyboardState.IsKeyDown(Keys.D3)) // Cybertruck
@@ -484,6 +520,9 @@ public class TGCGame : Game
                     Acceleration = 80f;
                     BrakeDeceleration = 150f;
                     DriftFactor = 0.97f;
+
+                    MediaPlayer.Stop();
+                    MediaPlayer.Play(_gameplaySong);
                     status = ST_STAGE_1;
                 }
                 #endregion
@@ -499,6 +538,7 @@ public class TGCGame : Game
                 {
                     _health = 100f;
                     _wrenches--;
+                    _repairSound?.Play();
                 }
 
                 #endregion
@@ -573,12 +613,15 @@ public class TGCGame : Game
                             {
                                 case CollectibleType.Coin:
                                     _score += 100;
+                                    _collectCoinSound?.Play();
                                     break;
                                 case CollectibleType.Gas:
                                     _fuel = 100f;
+                                    _collectGasSound?.Play();
                                     break;
                                 case CollectibleType.Wrench:
                                     _wrenches++;
+                                    _collectWrenchSound?.Play();
                                     break;
                             }
                         }
@@ -590,9 +633,11 @@ public class TGCGame : Game
                 CheckCollisions();
                 #endregion
 
-                if (_health <= 0f || _fuel <= 0f)
+                if (_health <= 0f || _fuel <= 0f && !_gameOver)
                 {
                     _gameOver = true;
+                    MediaPlayer.Stop();
+                    _gameOverSound?.Play();
                 }
                 break;
         }
@@ -621,6 +666,7 @@ public class TGCGame : Game
                 {
                     // CHOQUE FRONTAL O TRASERO = DAÑO TOTAL
                     _health = 0f;
+                    _crashFrontalSound?.Play();
                 }
                 else
                 {
@@ -629,6 +675,7 @@ public class TGCGame : Game
 
                     // Efecto de rebote simple
                     _carSpeed *= 0.5f;
+                    _crashLateralSound?.Play();
                 }
 
                 break;
@@ -657,8 +704,12 @@ public class TGCGame : Game
         // Vuelvo a spawnear objetos
         SpawnCollectiblesAndObstacles();
 
+        // Frenar musica
+        MediaPlayer.Stop();
+        MediaPlayer.Play(_menuSong);
+
         // Estado del juego reiniciado a menu
-        status = ST_SELECCION;
+        status = ST_PRESENTACION;
         _gameOver = false;
     }
 

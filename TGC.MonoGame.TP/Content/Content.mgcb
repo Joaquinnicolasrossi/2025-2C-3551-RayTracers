@@ -315,25 +315,6 @@
 /processorParam:TextureFormat=Compressed
 /build:Models/Debug/Sphere.fbx
 
-#begin Models/Debug/Sphere.fbx
-/importer:FbxImporter
-/processor:ModelProcessor
-/processorParam:ColorKeyColor=0,0,0,0
-/processorParam:ColorKeyEnabled=True
-/processorParam:DefaultEffect=BasicEffect
-/processorParam:GenerateMipmaps=True
-/processorParam:GenerateTangentFrames=False
-/processorParam:PremultiplyTextureAlpha=True
-/processorParam:PremultiplyVertexColors=True
-/processorParam:ResizeTexturesToPowerOfTwo=False
-/processorParam:RotationX=0
-/processorParam:RotationY=0
-/processorParam:RotationZ=0
-/processorParam:Scale=1
-/processorParam:SwapWindingOrder=False
-/processorParam:TextureFormat=Compressed
-/build:Models/Debug/Sphere.fbx
-
 #begin Models/Debug/SphereDebug.fbx
 /importer:FbxImporter
 /processor:ModelProcessor
@@ -485,6 +466,60 @@
 /processorParam:SwapWindingOrder=False
 /processorParam:TextureFormat=Compressed
 /build:Models/Tree/Tree.fbx
+
+#begin Music/gameplay_music.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:Music/gameplay_music.mp3
+
+#begin Music/menu_music.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:Music/menu_music.mp3
+
+#begin Sounds/collect_coin.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/collect_coin.wav
+
+#begin Sounds/collect_gas.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/collect_gas.wav
+
+#begin Sounds/collect_wrench.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/collect_wrench.wav
+
+#begin Sounds/crash_frontal.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/crash_frontal.wav
+
+#begin Sounds/crash_lateral.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/crash_lateral.wav
+
+#begin Sounds/game_over.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/game_over.wav
+
+#begin Sounds/repair.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/repair.wav
 
 #begin SpriteFonts/GameOver.spritefont
 /importer:FontDescriptionImporter

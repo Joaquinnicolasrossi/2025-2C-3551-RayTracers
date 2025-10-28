@@ -1,6 +1,6 @@
 using Microsoft.Xna.Framework;
 
-namespace TGC.MonoGame.TP.Zero
+namespace TGC.MonoGame.TP
 {
     public class Camera
     {
