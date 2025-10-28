@@ -44,6 +44,9 @@ public class TGCGame : Game
 
     private float _maxHealth = 100f;
     private float _fuelConsumptionRate = 5f;
+    private bool _isInvincible = false;
+    private float _invincibilityTimer = 0f;  // Contador de tiempo para la invencibilidad
+    private const float InvincibilityDuration = 0.5f; // Duración en segundos
     #endregion
 
     #region HUD
@@ -109,9 +112,6 @@ public class TGCGame : Game
 
     #region Matrices de mundo
     private Matrix _carWorld;
-    List<Matrix> casasWorld = new List<Matrix>();
-    List<Matrix> plantasWorld = new List<Matrix>();
-    List<Matrix> piedrasWorld = new List<Matrix>();
     private Matrix trackWorld;
     #endregion
 
@@ -144,13 +144,14 @@ public class TGCGame : Game
     private List<Collectible> _collectibles = new List<Collectible>();
     private List<Vector3> _obstacleSpawnPoints = new List<Vector3>();
     private List<Obstacle> _obstacles = new List<Obstacle>();
+    private List<EnvironmentObject> _environmentObjects = new List<EnvironmentObject>();
     #endregion
 
     #region Modo debug
     private Model _debugSphereModel;
     private RasterizerState _solidRasterizerState;
     private RasterizerState _wireframeRasterizerState;
-    private bool _isDebugModeEnabled = false;
+    private bool _debugModeEnabled = false;
     private KeyboardState _previousKeyboardState;
     private const float DebugSphereVisualCorrection = 0.1f;
     private Vector3 _lastCollisionNormal = Vector3.Zero;
@@ -344,21 +345,21 @@ public class TGCGame : Game
                 Vector3 pos = bone.Transform.Translation;
                 Matrix casaBase = Matrix.CreateScale(0.6f);
                 Matrix world = casaBase * Matrix.CreateTranslation(pos) * trackWorld;
-                casasWorld.Add(world);
+                _environmentObjects.Add(new EnvironmentObject(EnvironmentObjectType.House, world));
             }
             else if (bone.Name.StartsWith("piedra"))
             {
                 Vector3 pos = bone.Transform.Translation;
                 Matrix piedraBase = Matrix.CreateScale(40f);
                 Matrix world = piedraBase * Matrix.CreateTranslation(pos) * trackWorld;
-                piedrasWorld.Add(world);
+                _environmentObjects.Add(new EnvironmentObject(EnvironmentObjectType.Rock, world));
             }
             else if (bone.Name.StartsWith("planta"))
             {
                 Vector3 pos = bone.Transform.Translation;
                 Matrix plantaBase = Matrix.CreateScale(5f);
                 Matrix world = plantaBase * Matrix.CreateTranslation(pos) * trackWorld;
-                plantasWorld.Add(world);
+                _environmentObjects.Add(new EnvironmentObject(EnvironmentObjectType.Plant, world));
             }
             else if (bone.Name.StartsWith("collectable"))
             {
@@ -459,7 +460,7 @@ public class TGCGame : Game
         if (keyboardState.IsKeyDown(Keys.F12) && _previousKeyboardState.IsKeyUp(Keys.F12))
         {
             // Si F12 está presionada AHORA pero NO estaba presionada en el frame anterior
-            _isDebugModeEnabled = !_isDebugModeEnabled; // (toggle)
+            _debugModeEnabled = !_debugModeEnabled; // (toggle)
         }
 
         if (_gameOver)
@@ -551,8 +552,19 @@ public class TGCGame : Game
             case ST_STAGE_1:
                 #region Logica del juego
 
+                // Manejo de iframes
+                if (_isInvincible)
+                {
+                    _invincibilityTimer -= deltaTime;
+                    if (_invincibilityTimer <= 0f)
+                    {
+                        _isInvincible = false;
+                    }
+                }
+
                 // Consumo de nafta
-                _fuel -= _fuelConsumptionRate * deltaTime;
+                if (!_debugModeEnabled)
+                    _fuel -= _fuelConsumptionRate * deltaTime;
 
                 // Reparacion
                 if (keyboardState.IsKeyDown(Keys.R) && _wrenches > 0 && _health < _maxHealth)
@@ -670,44 +682,88 @@ public class TGCGame : Game
 
     private void CheckCollisions()
     {
-        const float FrontalCollisionThreshold = 0.99f; // Umbral para considerar un choque como frontal/trasero
+        if (_isInvincible) // si estoy en i-frame
+        {
+            return;
+        }
+
+        const float FrontalCollisionThreshold = 0.7f; // Umbral para considerar un choque como frontal/trasero
         _collidedLastFrame = false;
         _lastCollisionNormal = Vector3.Zero;
+        const float LateralDamageAmount = 40f;
 
-        foreach (var obstacle in _obstacles)
+        if (!_collidedLastFrame)
         {
-            if (!_collidedLastFrame && _carBoundingSphere.Intersects(obstacle.BoundingSphere))
+            foreach (var obstacle in _obstacles)
             {
-                _collidedLastFrame = true;
-                // Vector que va desde el centro del auto hacia el obstáculo
-                Vector3 collisionDirection = Vector3.Normalize(obstacle.BoundingSphere.Center - _carBoundingSphere.Center);
-                _lastCollisionNormal = collisionDirection;
-
-                // El producto punto nos dice qué tan alineados están los vectores.
-                // Si es cercano a 1 (o -1), el choque es frontal (o trasero).
-                // Si es cercano a 0, el choque es lateral.
-                float dotProduct = Vector3.Dot(_carDirection, collisionDirection);
-
-                if (Math.Abs(dotProduct) > FrontalCollisionThreshold)
+                if (_carBoundingSphere.Intersects(obstacle.BoundingSphere))
                 {
-                    // CHOQUE FRONTAL O TRASERO = DAÑO TOTAL
-                    _health = 0f;
-                    _crashFrontalSound?.Play();
+                    _collidedLastFrame = true;
+                    // Vector que va desde el centro del auto hacia el obstáculo
+                    Vector3 collisionDirection = Vector3.Normalize(obstacle.BoundingSphere.Center - _carBoundingSphere.Center);
+                    _lastCollisionNormal = collisionDirection;
+
+                    // El producto punto nos dice qué tan alineados están los vectores.
+                    // Si es cercano a 1 (o -1), el choque es frontal (o trasero).
+                    // Si es cercano a 0, el choque es lateral.
+                    float dotProduct = Vector3.Dot(_carDirection, collisionDirection);
+
+                    if (Math.Abs(dotProduct) > FrontalCollisionThreshold)
+                    {
+                        // CHOQUE FRONTAL O TRASERO = DAÑO TOTAL
+                        _health = 0f;
+                        _crashFrontalSound?.Play();
+                    }
+                    else
+                    {
+                        // CHOQUE LATERAL = DAÑO PARCIAL
+                        _health -= LateralDamageAmount;
+
+                        // Efecto de rebote simple
+                        _carSpeed *= 0.5f;
+                        _crashLateralSound?.Play();
+                    }
+
+                    _isInvincible = true;
+                    _invincibilityTimer = InvincibilityDuration;
+
+                    if (_health < 0f) _health = 0f;
+                    return;
                 }
-                else
-                {
-                    // CHOQUE LATERAL = DAÑO PARCIAL
-                    _health -= 35f;
-
-                    // Efecto de rebote simple
-                    _carSpeed *= 0.5f;
-                    _crashLateralSound?.Play();
-                }
-
-                if (_health < 0f) _health = 0f;
-
-                break;
             }
+
+            foreach (var envObject in _environmentObjects)
+            {
+                if (_carBoundingSphere.Intersects(envObject.BoundingSphere))
+                {
+                    _collidedLastFrame = true;
+                    // Solo las casas y rocas causan colisión grave por ahora
+                    if (envObject.Type == EnvironmentObjectType.House || envObject.Type == EnvironmentObjectType.Rock)
+                    {
+                        Vector3 collisionDirection = Vector3.Normalize(envObject.BoundingSphere.Center - _carBoundingSphere.Center);
+                        float dotProduct = Vector3.Dot(_carDirection, collisionDirection);
+
+                        if (Math.Abs(dotProduct) > FrontalCollisionThreshold)
+                        {
+                            // CHOQUE FRONTAL = GAME OVER INSTANTÁNEO
+                            _health = 0f;
+                            _crashFrontalSound?.Play();
+                        }
+                    }
+                    else // Planta o arbol
+                    {
+                        _health -= LateralDamageAmount;
+                        _carSpeed *= 0.5f; // Reduce velocidad
+                        _crashLateralSound?.Play();
+                    }
+                    _isInvincible = true;
+                    _invincibilityTimer = InvincibilityDuration;
+
+                    if (_health < 0f) _health = 0f;
+                    return;
+                }
+            }
+
         }
     }
 
@@ -823,21 +879,44 @@ public class TGCGame : Game
                     ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _basicShader);
                 }
 
-                // Dibujar casas en cada posición de empty
-                foreach (var world in casasWorld)
+                #region Environment 
+
+                // Dibujar objetos de environment en cada posición de empty
+                foreach (var envObject in _environmentObjects)
                 {
-                    ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _basicShader);
+                    if (!frustum.Intersects(envObject.BoundingSphere))
+                        continue;
+
+                    Model modelToDraw = null;
+                    Color color = Color.White;
+
+                    switch (envObject.Type)
+                    {
+                        case EnvironmentObjectType.House:
+                            modelToDraw = _houseModel;
+                            color = Color.SaddleBrown;
+                            break;
+                        case EnvironmentObjectType.Tree:
+                            modelToDraw = _treeModel;
+                            color = Color.Green;
+                            break;
+                        case EnvironmentObjectType.Rock:
+                            modelToDraw = _rockModel;
+                            color = Color.Gray;
+                            break;
+                        case EnvironmentObjectType.Plant:
+                            modelToDraw = _plantModel;
+                            color = Color.LightGreen;
+                            break;
+                    }
+
+                    if (modelToDraw != null)
+                    {
+                        ModelDrawingHelper.Draw(modelToDraw, envObject.World, _camera.View, _camera.Projection, color, _basicShader);
+                    }
                 }
 
-                foreach (var world in piedrasWorld)
-                {
-                    ModelDrawingHelper.Draw(_rockModel, world, _camera.View, _camera.Projection, Color.Gray, _basicShader);
-                }
-
-                foreach (var world in plantasWorld)
-                {
-                    ModelDrawingHelper.Draw(_plantModel, world, _camera.View, _camera.Projection, Color.Green, _basicShader);
-                }
+                #endregion
 
                 _basicShader.Parameters["World"].SetValue(_roadWorld);
                 _basicShader.Parameters["UseTexture"].SetValue(1f);
@@ -857,6 +936,7 @@ public class TGCGame : Game
 
                 ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, _roadTexture, _basicShader);
 
+                #region Coleccionables
                 foreach (var collectible in _collectibles)
                 {
                     // OPTIMIZACION PARA NO RENDERIZAR LO QUE NO SE ESTA VIENDO
@@ -879,6 +959,7 @@ public class TGCGame : Game
                         }
                     }
                 }
+                #endregion
 
                 #region Obstaculos
                 foreach (var obstacle in _obstacles)
@@ -902,7 +983,7 @@ public class TGCGame : Game
                 #endregion
 
                 #region Modo debug
-                if (_isDebugModeEnabled)
+                if (_debugModeEnabled)
                 {
                     #region Dibujado de Esferas de Debug
                     GraphicsDevice.RasterizerState = _wireframeRasterizerState;
@@ -926,6 +1007,16 @@ public class TGCGame : Game
                     {
                         var obstacleSphereWorld = Matrix.CreateScale(obstacle.BoundingSphere.Radius * DebugSphereVisualCorrection) * Matrix.CreateTranslation(obstacle.BoundingSphere.Center);
                         ModelDrawingHelper.Draw(_debugSphereModel, obstacleSphereWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
+                    }
+
+                    foreach (var envObject in _environmentObjects)
+                    {
+                        if (frustum.Intersects(envObject.BoundingSphere))
+                        {
+                            var envSphereWorld = Matrix.CreateScale(envObject.BoundingSphere.Radius /* * debugSphereCorrectionFactor */)
+                                                  * Matrix.CreateTranslation(envObject.BoundingSphere.Center);
+                            ModelDrawingHelper.Draw(_debugSphereModel, envSphereWorld, _camera.View, _camera.Projection, Color.Magenta, _basicShader);
+                        }
                     }
 
                     GraphicsDevice.RasterizerState = _solidRasterizerState;
