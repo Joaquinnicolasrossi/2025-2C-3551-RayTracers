@@ -33,7 +33,6 @@ public class TGCGame : Game
     private BoundingSphere _carBoundingSphere;
     private const float CarBoundingSphereRadius = 20f;
 
-    // Car's movement variables (need to be adjusted)
     private float _carSpeed = 0f;
     private float MaxSpeed = 300f;
     private float Acceleration = 100f;
@@ -153,7 +152,9 @@ public class TGCGame : Game
     private RasterizerState _wireframeRasterizerState;
     private bool _isDebugModeEnabled = false;
     private KeyboardState _previousKeyboardState;
-    private const float DebugSphereVisualCorrection = 0.5f;
+    private const float DebugSphereVisualCorrection = 0.1f;
+    private Vector3 _lastCollisionNormal = Vector3.Zero;
+    private bool _collidedLastFrame = false;
     #endregion
 
     #region Audio
@@ -396,6 +397,8 @@ public class TGCGame : Game
         MediaPlayer.IsRepeating = true;
         MediaPlayer.Play(_menuSong);
         #endregion
+
+        LineDrawer.LoadContent(GraphicsDevice);
 
         base.LoadContent();
     }
@@ -667,14 +670,18 @@ public class TGCGame : Game
 
     private void CheckCollisions()
     {
-        const float FrontalCollisionThreshold = 0.95f; // Umbral para considerar un choque como frontal/trasero
+        const float FrontalCollisionThreshold = 0.99f; // Umbral para considerar un choque como frontal/trasero
+        _collidedLastFrame = false;
+        _lastCollisionNormal = Vector3.Zero;
 
         foreach (var obstacle in _obstacles)
         {
-            if (_carBoundingSphere.Intersects(obstacle.BoundingSphere))
+            if (!_collidedLastFrame && _carBoundingSphere.Intersects(obstacle.BoundingSphere))
             {
+                _collidedLastFrame = true;
                 // Vector que va desde el centro del auto hacia el obstáculo
                 Vector3 collisionDirection = Vector3.Normalize(obstacle.BoundingSphere.Center - _carBoundingSphere.Center);
+                _lastCollisionNormal = collisionDirection;
 
                 // El producto punto nos dice qué tan alineados están los vectores.
                 // Si es cercano a 1 (o -1), el choque es frontal (o trasero).
@@ -922,6 +929,20 @@ public class TGCGame : Game
                     }
 
                     GraphicsDevice.RasterizerState = _solidRasterizerState;
+
+                    float vectorLength = 100f; // Longitud visual de los vectores
+
+                    // Vector de Dirección del Auto (_carDirection) - Dibuja en Rojo
+                    Vector3 carDirStart = _carBoundingSphere.Center + Vector3.Up * 5f; // Levantar un poco para que no esté en el piso
+                    Vector3 carDirEnd = carDirStart + _carDirection * vectorLength;
+                    LineDrawer.DrawLine(GraphicsDevice, carDirStart, carDirEnd, Color.Red, _camera.View, _camera.Projection);
+
+                    // Vector de Colisión (SOLO si hubo colisión) - Dibuja en Verde
+                    if (_collidedLastFrame)
+                    {
+                        Vector3 colDirEnd = carDirStart + _lastCollisionNormal * vectorLength;
+                        LineDrawer.DrawLine(GraphicsDevice, carDirStart, colDirEnd, Color.LimeGreen, _camera.View, _camera.Projection);
+                    }
                     #endregion
                 }
                 #endregion
