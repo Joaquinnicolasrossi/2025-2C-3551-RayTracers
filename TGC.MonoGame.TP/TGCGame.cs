@@ -46,7 +46,12 @@ public class TGCGame : Game
     private float _fuelConsumptionRate = 5f;
     private bool _isInvincible = false;
     private float _invincibilityTimer = 0f;  // Contador de tiempo para la invencibilidad
-    private const float InvincibilityDuration = 0.5f; // Duración en segundos
+    private const float InvincibilityDuration = 1f; // Duración en segundos
+
+    // Para animacion de iframes
+    private bool _carVisibleDuringInvincibility = true;
+    private float _blinkTimer = 0f;
+    private const float BlinkInterval = 0.1f;
     #endregion
 
     #region HUD
@@ -557,11 +562,24 @@ public class TGCGame : Game
                 // Manejo de iframes
                 if (_isInvincible)
                 {
-                    _invincibilityTimer -= deltaTime;
+                    _invincibilityTimer -= deltaTime; // tiempo de invencibilidad
+                    _blinkTimer -= deltaTime;         // tiempo del parpadeo
+
+                    if (_blinkTimer <= 0f)
+                    {
+                        _carVisibleDuringInvincibility = !_carVisibleDuringInvincibility;
+                        _blinkTimer = BlinkInterval;
+                    }
+
                     if (_invincibilityTimer <= 0f)
                     {
                         _isInvincible = false;
+                        _carVisibleDuringInvincibility = true;
                     }
+                }
+                else
+                {
+                    _carVisibleDuringInvincibility = true;
                 }
 
                 // Consumo de nafta
@@ -689,7 +707,7 @@ public class TGCGame : Game
             return;
         }
 
-        const float FrontalCollisionThreshold = 0.7f; // Umbral para considerar un choque como frontal/trasero
+        const float FrontalCollisionThreshold = 0.9f; // Umbral para considerar un choque como frontal/trasero
         _collidedLastFrame = false;
         _lastCollisionNormal = Vector3.Zero;
         const float LateralDamageAmount = 40f;
@@ -821,7 +839,10 @@ public class TGCGame : Game
                 _basicShader.Parameters["View"].SetValue(_camera.View);
                 _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
 
-                ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _basicShader);
+                if (_carVisibleDuringInvincibility)
+                {
+                    ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _basicShader);
+                }
 
                 // Dibujar múltiples árboles a ambos lados del camino
                 float treeSpacing = 200f; // Espaciado entre árboles
