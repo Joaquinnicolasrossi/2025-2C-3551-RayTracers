@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TGC.MonoGame.TP;
 
@@ -153,15 +154,13 @@ public class TGCGame : Game
     private List<EnvironmentObject> _environmentObjects = new List<EnvironmentObject>();
     #endregion
 
-    #region Traffic
+    #region Trafico
     private List<TrafficCar> _trafficCars = new List<TrafficCar>();
     private float _trafficSpawnTimer = 0f;
-    private const float TrafficSpawnInterval = 3.0f;
-    private const float TrafficCarSpeed = 150f;
-    // (adjust X values for lanes, Z should be far ahead)
-    private Vector3 _trafficSpawnPointLeft = new Vector3(-30f, 0f, -2500f); // Adjust Z based on track length/view distance
-    private Vector3 _trafficSpawnPointRight = new Vector3(30f, 0f, -2500f);
-    private const float TrafficDespawnZ = 4000f; // Z position beyond which cars are removed (adjust based on track)
+    private const float TrafficSpawnInterval = 1.0f;
+    private const float TrafficCarSpeed = 120f;
+    private List<Vector3> _onComingWaypoints = new List<Vector3>();
+    private List<Vector3> _withFlowWaypoints = new List<Vector3>();
     #endregion
 
     #region Modo debug
@@ -213,7 +212,7 @@ public class TGCGame : Game
     /// </summary>
     /// <param name="otherSphere">La BoundingSphere del objeto con el que se colisionó.</param>
     /// <param name="isFatalOnFrontal">Si true, un choque frontal/trasero causa Game Over instantáneo.</param>
-    /// <returns>True si se procesó una colisión, False en caso contrario.</returns>
+    /// <returns>True si se procesó una colisión, False en caso contrario.</returns>minRadius
     private bool HandleCollisionResponse(BoundingSphere otherSphere, bool isFatalOnFrontal)
     {
         // 1. Comprobación rápida de distancia (Optimización)
@@ -372,6 +371,83 @@ public class TGCGame : Game
         _spriteBatch.End();
     }
 
+    /// <summary>
+    /// Intenta spawnear un auto en un camino, cerca del jugador.
+    /// </summary>
+    /// <param name="path">La lista de waypoints del camino.</param>
+    /// <param name="minRadius">Distancia mínima al jugador para spawnear.</param>
+    /// <param name="maxRadius">Distancia máxima al jugador para spawnear.</param>
+    /// <param name="isOncoming">Si es tráfico en contra (para decidir si spawnear adelante o atrás).</param>
+    private void SpawnCarIfPlayerNear(List<Vector3> path, float minRadius, float maxRadius, bool isOncoming)
+    {
+        if (path == null || path.Count < 2)
+            return;
+
+        float minSq = minRadius * minRadius;
+        float maxSq = maxRadius * maxRadius;
+
+        for (int i = 0; i < path.Count - 1; i++)
+        {
+            Vector3 spawnPos = path[i];
+            float distSq = Vector3.DistanceSquared(spawnPos, _carPosition);
+
+            // Solo spawnear si está en el rango de distancia
+            if (distSq < minSq || distSq > maxSq)
+                continue;
+
+            // Dirección real de avance del jugador (bug conocido)
+            Vector3 carForward = -_carDirection;
+            Vector3 toSpawn = Vector3.Normalize(spawnPos - _carPosition);
+
+            // Solo spawnear si el punto está ADELANTE del jugador
+            if (Vector3.Dot(carForward, toSpawn) <= 0)
+                continue;
+
+            // Evitar superposición con otros autos
+            bool tooClose = _trafficCars.Any(c =>
+                Vector3.DistanceSquared(spawnPos, c.BoundingSphere.Center) < 50f * 50f);
+            if (tooClose)
+                continue;
+
+            // Construir el recorrido según el tipo
+            List<Vector3> carPath;
+
+            if (isOncoming)
+            {
+                // Los oncoming empiezan desde el final de la pista y van hacia el inicio
+                // => recorren el path en reversa
+                carPath = path.GetRange(0, i + 1);
+                carPath.Reverse();
+            }
+            else
+            {
+                // Los withflow van en la misma dirección que el jugador
+                // => siguen el path normal hacia adelante
+                carPath = path.GetRange(i, path.Count - i);
+            }
+
+            // Crear el auto
+            var model = GetRandomTrafficModel();
+            _trafficCars.Add(new TrafficCar(model, carPath, TrafficCarSpeed));
+
+            // Solo uno por ciclo
+            return;
+        }
+    }
+
+
+    private Model GetRandomTrafficModel()
+    {
+        int modelChoice = _random.Next(0, 3);
+        switch (modelChoice)
+        {
+            case 0: return _f1CarModel;
+            case 1: return _racingCarModel;
+            case 2: return _cybertruckModel;
+            default: return _racingCarModel;
+        }
+    }
+
     #endregion
 
     /// <summary>
@@ -520,6 +596,9 @@ public class TGCGame : Game
         _line = new QuadPrimitive(GraphicsDevice);
         #endregion
 
+        var onComingWaypointsAux = new List<(int index, Vector3 position)>();
+        var withFlowWaypointsAux = new List<(int index, Vector3 position)>();
+
         #region Spawns
         // Spawn de objetos segun el nombre de los empties de road.fbx
         foreach (ModelBone bone in _trackModel.Bones)
@@ -559,7 +638,29 @@ public class TGCGame : Game
                 Vector3 worldSpawnPosition = Vector3.Transform(spawnPosition, trackWorld);
                 _obstacleSpawnPoints.Add(worldSpawnPosition);
             }
+            else if (bone.Name.StartsWith("oncoming."))
+            {
+                string indexString = bone.Name.Substring("oncoming.".Length);
+                if (int.TryParse(indexString, out int index))
+                {
+                    onComingWaypointsAux.Add((index, Vector3.Transform(bone.Transform.Translation, trackWorld)));
+                }
+            }
+            else if (bone.Name.StartsWith("withflow."))
+            {
+                string indexString = bone.Name.Substring("withflow.".Length);
+                if (int.TryParse(indexString, out int index))
+                {
+                    withFlowWaypointsAux.Add((index, Vector3.Transform(bone.Transform.Translation, trackWorld)));
+                }
+            }
         }
+
+        onComingWaypointsAux.Sort((a, b) => a.index.CompareTo(b.index));
+        withFlowWaypointsAux.Sort((a, b) => a.index.CompareTo(b.index));
+
+        _onComingWaypoints = onComingWaypointsAux.Select(wp => wp.position).ToList();
+        _withFlowWaypoints = withFlowWaypointsAux.Select(wp => wp.position).ToList();
 
         SpawnCollectiblesAndObstacles();
         #endregion
@@ -797,28 +898,21 @@ public class TGCGame : Game
 
                 #region Trafico
 
-                // Logica de spawn
                 _trafficSpawnTimer += deltaTime;
                 if (_trafficSpawnTimer >= TrafficSpawnInterval)
                 {
                     _trafficSpawnTimer = 0f;
-
-                    Model chosenModel;
-                    int modelChoice = _random.Next(0, 3);
-                    if (modelChoice == 0) chosenModel = _f1CarModel;
-                    else if (modelChoice == 1) chosenModel = _racingCarModel;
-                    else chosenModel = _cybertruckModel;
-
-                    Vector3 spawnPos = (_random.Next(0, 2) == 0) ? _trafficSpawnPointLeft : _trafficSpawnPointRight;
-
-                    _trafficCars.Add(new TrafficCar(chosenModel, spawnPos, TrafficCarSpeed));
+                    float spawnRadiusMin = 2000f; // No spawnea mas cerca que esto
+                    float spawnRadiusMax = 20000f; // No spawnea mas lejos que esto
+                    SpawnCarIfPlayerNear(_onComingWaypoints, spawnRadiusMin, spawnRadiusMax, true);
+                    SpawnCarIfPlayerNear(_withFlowWaypoints, spawnRadiusMin, spawnRadiusMax, false);
                 }
 
-                // Logica de update y remove
+                // Actualizar y despawnear autos (esta lógica ya está bien y usa la distancia al jugador)
                 for (int i = _trafficCars.Count - 1; i >= 0; i--)
                 {
-                    _trafficCars[i].Update(deltaTime);
-                    if (_trafficCars[i].Position.Z > TrafficDespawnZ)
+                    bool stillActive = _trafficCars[i].Update(deltaTime, _carPosition);
+                    if (!stillActive)
                     {
                         _trafficCars.RemoveAt(i);
                     }
@@ -1150,6 +1244,14 @@ public class TGCGame : Game
 
                 #region Dibujado del HUD
                 _spriteBatch.Begin();
+
+                if (_debugModeEnabled)
+                {
+                    string oncomingCount = $"Oncoming Waypoints: {_onComingWaypoints.Count}";
+                    string withFlowCount = $"With-Flow Waypoints: {_withFlowWaypoints.Count}";
+                    _spriteBatch.DrawString(_mainFont, oncomingCount, new Vector2(50, 350), Color.Yellow);
+                    _spriteBatch.DrawString(_mainFont, withFlowCount, new Vector2(50, 380), Color.Yellow);
+                }
 
                 if (_gameOver)
                 {
