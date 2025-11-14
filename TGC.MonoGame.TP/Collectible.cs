@@ -28,6 +28,9 @@ namespace TGC.MonoGame.TP
         private readonly Matrix _initialRotation = Matrix.Identity; // Guardamos la rotación estática inicial
         private readonly Vector3 _scale;
 
+        // Bobbing vertical (petit translation haut/bas)
+        private const float BobAmplitude = 5.0f; // hauteur maximale du bob (en unités de monde)
+
         public Collectible(CollectibleType type, Vector3 position)
         {
             Type = type;
@@ -70,7 +73,12 @@ namespace TGC.MonoGame.TP
 
             var animationMatrix = Matrix.CreateRotationY(_animationRotation);
 
-            World = Matrix.CreateScale(_scale) * _initialRotation * animationMatrix * Matrix.CreateTranslation(Position);
+            // small vertical bob synced with rotation period: sin(_animationRotation) has period 2π,
+            // same as a full rotation (2π radians) so object returns to start after 360°.
+            float bobOffset = (float)System.Math.Sin(_animationRotation) * BobAmplitude;
+            Vector3 displacedPosition = Position + Vector3.Up * bobOffset;
+
+            World = Matrix.CreateScale(_scale) * _initialRotation * animationMatrix * Matrix.CreateTranslation(displacedPosition);
         }
     }
 }
