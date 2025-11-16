@@ -115,7 +115,6 @@ public class TGCGame : Game
 
     private TerrainType _currentTerrain;
     private Random _random = new Random();
-    private Dictionary<Model, Matrix> _modelRotationFix = new();
     #endregion
 
     #region Matrices de mundo
@@ -1011,9 +1010,10 @@ public class TGCGame : Game
                 DrawMenu(_menuSelection);
                 break;
             case ST_STAGE_1:
-
-                _basicShader.Parameters["View"].SetValue(_camera.View);
-                _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
+                _basicShader.Parameters["CameraPosition"]?.SetValue(_camera.Position);
+                // _basicShader.Parameters["View"]?.SetValue(_camera.View);
+                // _basicShader.Parameters["Projection"]?.SetValue(_camera.Projection);
+                // _basicShader.Parameters["LightDirection"]?.SetValue(new Vector3(0.5f, -1, 0.3f));
 
                 if (_carVisibleDuringInvincibility)
                 {
@@ -1289,7 +1289,7 @@ public class TGCGame : Game
                     var gameOverPosition = screenCenter - new Vector2(gameOverSize.X / 2, gameOverSize.Y);
                     var restartPosition = screenCenter - new Vector2(restartSize.X / 2, -10f);
 
-                    _spriteBatch.DrawString(_gameOverFont, gameOverText, gameOverPosition, Color.Red);
+                    _spriteBatch.DrawString(_gameOverFont, gameOverText, gameOverPosition, Color.DarkRed);
                     _spriteBatch.DrawString(_mainFont, restartText, restartPosition, Color.White);
                 }
                 else
