@@ -15,15 +15,17 @@ namespace TGC.MonoGame.TP
         private Vector3 _position;
         private float _speed;
         private const float WaypointArrivalThreshold = 50f; // cercania necesaria para pasar al prox waypoint
-        private const float TrafficCarRadius = 20f;
+        private const float TrafficCarRadius = 15f;
         private const float DespawnDistanceSquared = 5000f * 5000f;
         private readonly Vector3 _scale = new Vector3(0.1f);
+        private readonly Matrix _modelFix;
 
-        public TrafficCar(Model model, List<Vector3> path, float speed)
+        public TrafficCar(Model model, List<Vector3> path, float speed, Matrix modelFix)
         {
             CarModel = model;
             _path = path;
             _speed = speed;
+            _modelFix = modelFix;
 
             _position = _path[0]; // empieza en el primer waypoint
             _currentWaypointIndex = 1; // se mueve hacia el segundo
@@ -77,7 +79,7 @@ namespace TGC.MonoGame.TP
             // Combinamos escala, rotación y posición
             // (Tu lógica de giro de 180° puede ser necesaria aquí si los modelos miran para atrás)
             // Matrix flip = Matrix.CreateRotationY(MathHelper.Pi); 
-            World = Matrix.CreateScale(_scale) * rotationMatrix * Matrix.CreateTranslation(_position);
+            World = Matrix.CreateScale(_scale) * rotationMatrix * _modelFix * Matrix.CreateTranslation(_position);
         }
     }
 }
