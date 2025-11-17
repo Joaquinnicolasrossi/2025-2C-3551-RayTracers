@@ -566,26 +566,29 @@ public class TGCGame : Game
             case TerrainType.Asphalt:
                 _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Asphalt/OffRoad/grassTextureV2");
                 _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Asphalt/Road/asphaltColor");
-                // MaxSpeed = 300f;
-                // Acceleration = 100f;
-                // BrakeDeceleration = 250f;
-                // DriftFactor = 0.75f;
+                // The parameters on the asphalt (MaxSpeed, Acceleration,...) stay the same as the one define for every car
                 break;
             case TerrainType.Dirt:
                 _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/OffRoad/grassTextureV2");
                 _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/Road/dirtTexture");
-                // MaxSpeed = 200f;
-                // Acceleration = 80f;
-                // BrakeDeceleration = 150f;
-                // DriftFactor = 0.96f;
-                break;
+                MaxSpeed = MaxSpeed * 0.8f;
+                Acceleration = Acceleration * 0.8f;
+                BrakeDeceleration = BrakeDeceleration * 0.7f;
+             // DriftFactor needs to be done manually (0 < DriftFactor < 1) so we can't just multiply
+                if (_selectedCarModel == _f1CarModel) { DriftFactor = 0.91f; }
+                else if (_selectedCarModel == _racingCarModel) { DriftFactor = 0.95f; }
+                else { DriftFactor = 0.97f; } // CyberTruck
+                    break;
             case TerrainType.Snow:
                 _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/OffRoad/snowColor");
                 _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/Road/snowDirtColor");
-                // MaxSpeed = 180f;
-                // Acceleration = 70f;
-                // BrakeDeceleration = 100f;
-                // DriftFactor = 0.97f;
+                MaxSpeed = MaxSpeed * 0.7f;
+                Acceleration = Acceleration * 0.7f;
+                BrakeDeceleration = BrakeDeceleration * 0.4f;
+             // DriftFactor needs to be done manually (0 < DriftFactor < 1) so we can't just multiply
+                if (_selectedCarModel == _f1CarModel) { DriftFactor = 0.95f; }
+                else if (_selectedCarModel == _racingCarModel) { DriftFactor = 0.97f; }
+                else { DriftFactor = 0.99f; } // CyberTruck
                 break;
         }
         #endregion
@@ -780,7 +783,7 @@ public class TGCGame : Game
                     MaxSpeed = 250f;
                     Acceleration = 80f;
                     BrakeDeceleration = 150f;
-                    DriftFactor = 0.97f;
+                    DriftFactor = 0.95f;
                     _maxHealth = 200f;
                     _fuelConsumptionRate = 3f;
                     _currentTurnSpeedFactor = 0.7f;
