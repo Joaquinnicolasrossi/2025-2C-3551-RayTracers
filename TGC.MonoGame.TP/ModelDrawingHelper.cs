@@ -31,6 +31,10 @@ namespace TGC.MonoGame.TP
             effect.Parameters["Projection"]?.SetValue(projection);
             effect.Parameters["UseTexture"]?.SetValue(0);
             effect.Parameters["DiffuseColor"]?.SetValue(color.ToVector3());
+            effect.Parameters["LightDirection"]?.SetValue(new Vector3(1, -1, 1)); // hacia abajo adelante der
+            effect.Parameters["AmbientColor"]?.SetValue(new Vector3(0.2f));
+            effect.Parameters["SpecularColor"]?.SetValue(new Vector3(1));
+            effect.Parameters["Shininess"]?.SetValue(32f);
 
             foreach (var mesh in model.Meshes)
             {
@@ -46,6 +50,10 @@ namespace TGC.MonoGame.TP
             effect.Parameters["Projection"]?.SetValue(projection);
             effect.Parameters["UseTexture"]?.SetValue(1);
             effect.Parameters["MainTexture"]?.SetValue(texture);
+            effect.Parameters["LightDirection"]?.SetValue(new Vector3(1, -1, 1));
+            effect.Parameters["AmbientColor"]?.SetValue(new Vector3(0.2f));
+            effect.Parameters["SpecularColor"]?.SetValue(new Vector3(1));
+            effect.Parameters["Shininess"]?.SetValue(32f);
 
             foreach (var mesh in model.Meshes)
             {

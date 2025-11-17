@@ -13,6 +13,7 @@ namespace TGC.MonoGame.TP
         private Vector3 currentLookAt;
         private const float SmoothFactor = 0.1f; // Between 0 (very smooth) and 1 (no smoothing)
         public BoundingFrustum Frustum { get; private set; } // Para optimizacion de cargar solo lo que esta en el frustum
+        public Vector3 Position => currentCamPos;
 
         public Camera(float aspectRatio, float distanceBack, float heightOffset, float lookAhead)
         {
