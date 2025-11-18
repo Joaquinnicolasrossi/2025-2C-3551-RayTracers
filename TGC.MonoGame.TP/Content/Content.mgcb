@@ -25,6 +25,18 @@
 /processorParam:DebugMode=Auto
 /build:Effects/GrassShader.fx
 
+#begin Effects/ShadowedBasicShader.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Effects/ShadowedBasicShader.fx
+
+#begin Effects/ShadowGen.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Effects/ShadowGen.fx
+
 #begin Menus/menu_start.png
 /importer:TextureImporter
 /processor:TextureProcessor

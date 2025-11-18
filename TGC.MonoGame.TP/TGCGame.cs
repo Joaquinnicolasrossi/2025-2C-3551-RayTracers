@@ -130,6 +130,14 @@ public class TGCGame : Game
     #region Shaders
     private Effect _basicShader;
     private Effect _grassShader;
+    // Shadow map
+    private RenderTarget2D _shadowMapRT;
+    private Effect _shadowGenEffect;
+    private Effect _shadowedEffect; // ShadowedBasicShader
+    private Matrix _lightView;
+    private Matrix _lightProj;
+    private Matrix _lightViewProj;
+    private Vector3 _lightDirection = Vector3.Normalize(new Vector3(0.1f, -1f, 1f));
     #endregion
 
     #region Menu
@@ -442,6 +450,73 @@ public class TGCGame : Game
         }
     }
 
+    private void ComputeLightMatrices()
+    {
+        Vector3 center = _carPosition;
+        Vector3 lightDir = Vector3.Normalize(_lightDirection);
+        Vector3 lightPos = center - lightDir * 2000f;
+
+        Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.Up, lightDir));
+        Vector3 correctedUp = Vector3.Normalize(Vector3.Cross(lightDir, right));
+
+        _lightView = Matrix.CreateLookAt(lightPos, center, correctedUp);
+
+        float orthoSize = 1800f;
+        _lightProj = Matrix.CreateOrthographicOffCenter(
+            -orthoSize, orthoSize,
+            -orthoSize * 0.3f, orthoSize * 1.7f,
+            1f, 6000f
+        );
+
+        _lightViewProj = _lightView * _lightProj;
+    }
+
+    private void RenderShadowMap()
+    {
+        ComputeLightMatrices();
+
+        // A Shadow Map solo le interesa DEPTH, por eso Single (float) como formato
+        GraphicsDevice.SetRenderTarget(_shadowMapRT);
+        GraphicsDevice.Clear(Color.White); // valor de profundidad máximo (lejos)
+
+        var prevRS = GraphicsDevice.RasterizerState;
+        GraphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
+
+        _shadowGenEffect.Parameters["LightViewProj"]?.SetValue(_lightViewProj);
+
+        ModelDrawingHelper.DrawDepth(_selectedCarModel, _carWorld, _shadowGenEffect);
+
+        ModelDrawingHelper.DrawDepth(_trackModel, trackWorld, _shadowGenEffect);
+
+        foreach (var envObj in _environmentObjects)
+        {
+            var model = GetModelByEnvType(envObj);
+            if (model != null)
+                ModelDrawingHelper.DrawDepth(model, envObj.World, _shadowGenEffect);
+        }
+
+        foreach (var trafficCar in _trafficCars)
+            ModelDrawingHelper.DrawDepth(trafficCar.CarModel, trafficCar.World, _shadowGenEffect);
+
+        foreach (var collectible in _collectibles)
+            ModelDrawingHelper.DrawDepth(_coinModel, collectible.World, _shadowGenEffect);
+
+        foreach (var obstacle in _obstacles)
+            ModelDrawingHelper.DrawDepth(_rockModel, obstacle.World, _shadowGenEffect);
+
+        GraphicsDevice.RasterizerState = prevRS;
+        GraphicsDevice.SetRenderTarget(null);
+    }
+
+    private Model GetModelByEnvType(EnvironmentObject envObj) => envObj.Type switch
+    {
+        EnvironmentObjectType.House => _houseModel,
+        EnvironmentObjectType.Tree => _treeModel,
+        EnvironmentObjectType.Rock => _rockModel,
+        EnvironmentObjectType.Plant => _plantModel,
+        _ => null
+    };
+
     #endregion
 
     /// <summary>
@@ -536,22 +611,27 @@ public class TGCGame : Game
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
         _basicShader = Content.Load<Effect>(ContentFolderEffects + "BasicShader");
         _grassShader = Content.Load<Effect>(ContentFolderEffects + "GrassShader");
+        _shadowGenEffect = Content.Load<Effect>("Effects/ShadowGen");
+        _shadowedEffect = Content.Load<Effect>("Effects/ShadowedBasicShader");
+        // Crear shadow map RT (usa SurfaceFormat.Single para guardar depth en R)
+        int shadowSize = 2048; // 1024 o 2048 dependiendo de calidad/performance
+        _shadowMapRT = new RenderTarget2D(GraphicsDevice, shadowSize, shadowSize, false, SurfaceFormat.Single, DepthFormat.Depth24);
 
         // Asigno el efecto que cargue a cada parte del mesh.
-        ModelDrawingHelper.AttachEffectToModel(_racingCarModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_cybertruckModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_f1CarModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_treeModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_houseModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_trackModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_plantModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_rockModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_gasModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_wrenchModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_coinModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_cowModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_deerModel, _basicShader);
-        ModelDrawingHelper.AttachEffectToModel(_goatModel, _basicShader);
+        ModelDrawingHelper.AttachEffectToModel(_racingCarModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_cybertruckModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_f1CarModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_treeModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_houseModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_trackModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_plantModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_rockModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_gasModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_wrenchModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_coinModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_cowModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_deerModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_goatModel, _shadowedEffect);
         #endregion
 
         #region Terrenos
@@ -565,21 +645,21 @@ public class TGCGame : Game
             case TerrainType.Dirt:
                 _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/OffRoad/grassTextureV2");
                 _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Dirt/Road/dirtTexture");
-                MaxSpeed = MaxSpeed * 0.8f;
-                Acceleration = Acceleration * 0.8f;
+                MaxSpeed = MaxSpeed * 0.9f;
+                Acceleration = Acceleration * 0.9f;
                 BrakeDeceleration = BrakeDeceleration * 0.7f;
-             // DriftFactor needs to be done manually (0 < DriftFactor < 1) so we can't just multiply
+                // DriftFactor needs to be done manually (0 < DriftFactor < 1) so we can't just multiply
                 if (_selectedCarModel == _f1CarModel) { DriftFactor = 0.91f; }
                 else if (_selectedCarModel == _racingCarModel) { DriftFactor = 0.95f; }
                 else { DriftFactor = 0.97f; } // CyberTruck
-                    break;
+                break;
             case TerrainType.Snow:
                 _grassTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/OffRoad/snowColor");
                 _roadTexture = Content.Load<Texture2D>(ContentFolderTextures + "Snow/Road/snowDirtColor");
-                MaxSpeed = MaxSpeed * 0.7f;
-                Acceleration = Acceleration * 0.7f;
+                MaxSpeed = MaxSpeed * 0.8f;
+                Acceleration = Acceleration * 0.8f;
                 BrakeDeceleration = BrakeDeceleration * 0.4f;
-             // DriftFactor needs to be done manually (0 < DriftFactor < 1) so we can't just multiply
+                // DriftFactor needs to be done manually (0 < DriftFactor < 1) so we can't just multiply
                 if (_selectedCarModel == _f1CarModel) { DriftFactor = 0.95f; }
                 else if (_selectedCarModel == _racingCarModel) { DriftFactor = 0.97f; }
                 else { DriftFactor = 0.99f; } // CyberTruck
@@ -768,12 +848,12 @@ public class TGCGame : Game
                     _selectedCarModel = _f1CarModel;
                     _selectedCarColor = Color.Crimson;
                     // Parámetros para el F1: Rápido, ágil, poca vida, consume mucho combustible
-                    MaxSpeed = 450f;
-                    Acceleration = 180f;
+                    MaxSpeed = 550f;
+                    Acceleration = 220f;
                     BrakeDeceleration = 300f;
                     DriftFactor = 0.85f;
                     _maxHealth = 100f;
-                    _fuelConsumptionRate = 4.5f;
+                    _fuelConsumptionRate = 6.5f;
                     _currentTurnSpeedFactor = 1.3f;
                     carSelected = true;
                 }
@@ -782,12 +862,12 @@ public class TGCGame : Game
                     _selectedCarModel = _racingCarModel;
                     _selectedCarColor = Color.Blue;
                     // Parámetros Equilibrados: Buena velocidad y aceleración, frenado decente, drift moderado
-                    MaxSpeed = 350f;
-                    Acceleration = 120f;
+                    MaxSpeed = 400f;
+                    Acceleration = 170f;
                     BrakeDeceleration = 200f;
                     DriftFactor = 0.92f;
                     _maxHealth = 150f;
-                    _fuelConsumptionRate = 3f;
+                    _fuelConsumptionRate = 5f;
                     _currentTurnSpeedFactor = 1.0f;
                     carSelected = true;
                 }
@@ -796,12 +876,12 @@ public class TGCGame : Game
                     _selectedCarModel = _cybertruckModel;
                     _selectedCarColor = Color.DarkGray;
                     // Parámetros "Pesados": Menor velocidad y aceleración, frenado pobre, mucho drift (poco agarre)
-                    MaxSpeed = 250f;
-                    Acceleration = 80f;
+                    MaxSpeed = 300f;
+                    Acceleration = 130f;
                     BrakeDeceleration = 150f;
                     DriftFactor = 0.95f;
                     _maxHealth = 200f;
-                    _fuelConsumptionRate = 2f;
+                    _fuelConsumptionRate = 3.5f;
                     _currentTurnSpeedFactor = 0.7f;
                     carSelected = true;
                 }
@@ -1002,8 +1082,6 @@ public class TGCGame : Game
     {
         var frustum = _camera.Frustum;
 
-        GraphicsDevice.Clear(Color.LightBlue);
-
         switch (status)
         {
             case ST_PRESENTACION:
@@ -1013,14 +1091,21 @@ public class TGCGame : Game
                 DrawMenu(_menuSelection);
                 break;
             case ST_STAGE_1:
-                _basicShader.Parameters["CameraPosition"]?.SetValue(_camera.Position);
-                // _basicShader.Parameters["View"]?.SetValue(_camera.View);
-                // _basicShader.Parameters["Projection"]?.SetValue(_camera.Projection);
-                // _basicShader.Parameters["LightDirection"]?.SetValue(new Vector3(0.5f, -1, 0.3f));
+                RenderShadowMap();
+
+                // Cielo
+                GraphicsDevice.SetRenderTarget(null);
+                GraphicsDevice.Clear(Color.CornflowerBlue);
+
+                _shadowedEffect.Parameters["ShadowMap"]?.SetValue(_shadowMapRT);
+                _shadowedEffect.Parameters["LightViewProj"]?.SetValue(_lightViewProj);
+                _shadowedEffect.Parameters["LightDirection"]?.SetValue(_lightDirection);
+                _shadowedEffect.Parameters["CameraPosition"]?.SetValue(_camera.Position);
+                _shadowedEffect.Parameters["ShadowMapTexelSize"]?.SetValue(new Vector2(1f / _shadowMapRT.Width, 1f / _shadowMapRT.Height));
 
                 if (_carVisibleDuringInvincibility)
                 {
-                    ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _basicShader);
+                    ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                 }
 
                 // Dibujar múltiples árboles a ambos lados del camino
@@ -1033,13 +1118,13 @@ public class TGCGame : Game
                     Matrix rightTreeWorld = Matrix.CreateScale(20f + (z % 100) / 20f) * // Variación de tamaño de los árboles
                                            Matrix.CreateRotationY(z * 0.01f) * // Rotación de los árboles
                                            Matrix.CreateTranslation(new Vector3(treeDistance, 0f, z));
-                    ModelDrawingHelper.Draw(_treeModel, rightTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+                    ModelDrawingHelper.Draw(_treeModel, rightTreeWorld, _camera.View, _camera.Projection, Color.Green, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
 
                     // Árboles del lado izquierdo (X negativo)
                     Matrix leftTreeWorld = Matrix.CreateScale(15f + ((z + 50) % 100) / 15f) * // Variación de tamaño de los árboles
                                           Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de los árboles
                                           Matrix.CreateTranslation(new Vector3(-treeDistance, 0f, z + 100f)); // Offset para que no estén alineados los árboles
-                    ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _basicShader);
+                    ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                 }
 
                 GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
@@ -1078,7 +1163,7 @@ public class TGCGame : Game
 
                 foreach (var world in houseWorlds)
                 {
-                    ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _basicShader);
+                    ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                 }
 
                 #region Environment 
@@ -1114,7 +1199,7 @@ public class TGCGame : Game
 
                     if (modelToDraw != null)
                     {
-                        ModelDrawingHelper.Draw(modelToDraw, envObject.World, _camera.View, _camera.Projection, color, _basicShader);
+                        ModelDrawingHelper.Draw(modelToDraw, envObject.World, _camera.View, _camera.Projection, color, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                     }
                 }
 
@@ -1122,8 +1207,15 @@ public class TGCGame : Game
 
                 #region Road original
                 _basicShader.Parameters["World"].SetValue(_roadWorld);
+                _basicShader.Parameters["View"].SetValue(_camera.View);
+                _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
+                _basicShader.Parameters["CameraPosition"].SetValue(_camera.Position);
                 _basicShader.Parameters["UseTexture"].SetValue(1f);
                 _basicShader.Parameters["MainTexture"].SetValue(_roadTexture);
+                _basicShader.Parameters["LightDirection"].SetValue(_lightDirection);
+                _basicShader.Parameters["AmbientColor"].SetValue(new Vector3(0.2f));
+                _basicShader.Parameters["SpecularColor"].SetValue(Vector3.One);
+                _basicShader.Parameters["Shininess"].SetValue(32f);
                 _road.Draw(_basicShader);
 
                 for (float z = -_roadLength + _lineSpacing; z < _roadLength; z += _lineSpacing)
@@ -1131,13 +1223,16 @@ public class TGCGame : Game
                     _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 1f, z)); // 0.04 para evitar z-fighting
 
                     _basicShader.Parameters["World"].SetValue(_lineWorld);
+                    _basicShader.Parameters["View"].SetValue(_camera.View);
+                    _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
+                    _basicShader.Parameters["CameraPosition"].SetValue(_camera.Position);
                     _basicShader.Parameters["UseTexture"].SetValue(0f);
                     _basicShader.Parameters["DiffuseColor"].SetValue(Color.Yellow.ToVector3());
                     _line.Draw(_basicShader);
                 }
 
-
-                ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, _roadTexture, _basicShader);
+                // Pista Nurburing
+                ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, _roadTexture, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                 #endregion
 
                 #region Coleccionables
@@ -1152,13 +1247,13 @@ public class TGCGame : Game
                         switch (collectible.Type)
                         {
                             case CollectibleType.Coin:
-                                ModelDrawingHelper.Draw(_coinModel, collectible.World, _camera.View, _camera.Projection, Color.Gold, _basicShader);
+                                ModelDrawingHelper.Draw(_coinModel, collectible.World, _camera.View, _camera.Projection, Color.Gold, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                                 break;
                             case CollectibleType.Gas:
-                                ModelDrawingHelper.Draw(_gasModel, collectible.World, _camera.View, _camera.Projection, Color.DarkRed, _basicShader);
+                                ModelDrawingHelper.Draw(_gasModel, collectible.World, _camera.View, _camera.Projection, Color.DarkRed, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                                 break;
                             case CollectibleType.Wrench:
-                                ModelDrawingHelper.Draw(_wrenchModel, collectible.World, _camera.View, _camera.Projection, Color.LightGray, _basicShader);
+                                ModelDrawingHelper.Draw(_wrenchModel, collectible.World, _camera.View, _camera.Projection, Color.LightGray, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                                 break;
                         }
                     }
@@ -1174,13 +1269,13 @@ public class TGCGame : Game
                     switch (obstacle.Type)
                     {
                         case ObstacleType.Cow:
-                            ModelDrawingHelper.Draw(_cowModel, obstacle.World, _camera.View, _camera.Projection, Color.White, _basicShader);
+                            ModelDrawingHelper.Draw(_cowModel, obstacle.World, _camera.View, _camera.Projection, Color.White, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                             break;
                         case ObstacleType.Deer:
-                            ModelDrawingHelper.Draw(_deerModel, obstacle.World, _camera.View, _camera.Projection, Color.SaddleBrown, _basicShader);
+                            ModelDrawingHelper.Draw(_deerModel, obstacle.World, _camera.View, _camera.Projection, Color.SaddleBrown, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                             break;
                         case ObstacleType.Goat:
-                            ModelDrawingHelper.Draw(_goatModel, obstacle.World, _camera.View, _camera.Projection, Color.LightGray, _basicShader);
+                            ModelDrawingHelper.Draw(_goatModel, obstacle.World, _camera.View, _camera.Projection, Color.LightGray, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                             break;
                     }
                 }
@@ -1192,7 +1287,7 @@ public class TGCGame : Game
                     if (!frustum.Intersects(trafficCar.BoundingSphere))
                         continue;
 
-                    ModelDrawingHelper.Draw(trafficCar.CarModel, trafficCar.World, _camera.View, _camera.Projection, Color.Magenta, _basicShader);
+                    ModelDrawingHelper.Draw(trafficCar.CarModel, trafficCar.World, _camera.View, _camera.Projection, Color.Magenta, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                 }
                 #endregion
 

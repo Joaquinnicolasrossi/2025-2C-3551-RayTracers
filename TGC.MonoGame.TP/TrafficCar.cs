@@ -15,7 +15,7 @@ namespace TGC.MonoGame.TP
         private Vector3 _position;
         private float _speed;
         private const float WaypointArrivalThreshold = 50f; // cercania necesaria para pasar al prox waypoint
-        private const float TrafficCarRadius = 15f;
+        private const float TrafficCarRadius = 11.5f;
         private const float DespawnDistanceSquared = 5000f * 5000f;
         private readonly Vector3 _scale = new Vector3(0.1f);
         private readonly Matrix _modelFix;
