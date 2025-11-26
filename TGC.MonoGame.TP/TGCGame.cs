@@ -131,14 +131,12 @@ public class TGCGame : Game
     #region Shaders
     private Effect _basicShader;
     private Effect _grassShader;
-    // Shadow map
-    private RenderTarget2D _shadowMapRT;
-    private Effect _shadowGenEffect;
-    private Effect _shadowedEffect; // ShadowedBasicShader
+    private Effect _shadowMapEffect;
+    private const int ShadowmapSize = 2048;
+    private RenderTarget2D _shadowMapRenderTarget;
+    private Vector3 _lightPosition;
     private Matrix _lightView;
-    private Matrix _lightProj;
-    private Matrix _lightViewProj;
-    private Vector3 _lightDirection = Vector3.Normalize(new Vector3(0.1f, -1f, 1f));
+    private Matrix _lightProjection;
     #endregion
 
     #region Menu
@@ -211,8 +209,9 @@ public class TGCGame : Game
         // Maneja la configuracion y la administracion del dispositivo grafico.
         _graphics = new GraphicsDeviceManager(this);
 
-        _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width - 100;
-        _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height - 100;
+        _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+        _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+        _graphics.ToggleFullScreen();
 
         // Para que el juego sea pantalla completa se puede usar Graphics IsFullScreen.
         // Carpeta raiz donde va a estar toda la Media.
@@ -355,7 +354,7 @@ public class TGCGame : Game
         _wrenches = 0;
 
         // Resetear estado del auto
-        _carPosition = new Vector3(0f, 0f, _roadLength - 200f);
+        _carPosition = new Vector3(0f, 0f, _roadLength);
         _carRotation = 0f;
         _carSpeed = 0f;
         _carDirection = Vector3.Forward;
@@ -387,7 +386,7 @@ public class TGCGame : Game
     private void DrawMenu(Texture2D menu)
     {
         _spriteBatch.Begin();
-        _spriteBatch.Draw(menu, new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width - 100, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height - 100), Color.White);
+        _spriteBatch.Draw(menu, new Rectangle(0, 0, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width, GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height), Color.White);
         _spriteBatch.End();
     }
 
@@ -462,71 +461,242 @@ public class TGCGame : Game
 
     private void ComputeLightMatrices()
     {
-        Vector3 center = _carPosition;
-        Vector3 lightDir = Vector3.Normalize(_lightDirection);
-        Vector3 lightPos = center - lightDir * 2000f;
+        // Luz "Sol" (Direccional)
+        Vector3 lightDir = Vector3.Normalize(new Vector3(0.5f, 1f, -0.5f));
+        _lightPosition = _carPosition + lightDir * 5000f; // Posición ficticia muy lejana
 
-        Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.Up, lightDir));
-        Vector3 correctedUp = Vector3.Normalize(Vector3.Cross(lightDir, right));
+        // View: La luz mira al auto
+        _lightView = Matrix.CreateLookAt(_lightPosition, _carPosition, Vector3.Up);
 
-        _lightView = Matrix.CreateLookAt(lightPos, center, correctedUp);
-
-        float orthoSize = 1800f;
-        _lightProj = Matrix.CreateOrthographicOffCenter(
-            -orthoSize, orthoSize,
-            -orthoSize * 0.3f, orthoSize * 1.7f,
-            1f, 6000f
-        );
-
-        _lightViewProj = _lightView * _lightProj;
+        // Projection: Ortográfica grande para cubrir el mapa
+        float size = 4000f;
+        _lightProjection = Matrix.CreateOrthographic(size, size, 100f, 10000f);
     }
 
-    private void RenderShadowMap()
+    private void DrawShadowMapPass()
     {
         ComputeLightMatrices();
 
-        // A Shadow Map solo le interesa DEPTH, por eso Single (float) como formato
-        GraphicsDevice.SetRenderTarget(_shadowMapRT);
-        GraphicsDevice.Clear(Color.White); // valor de profundidad máximo (lejos)
+        GraphicsDevice.SetRenderTarget(_shadowMapRenderTarget);
+        GraphicsDevice.Clear(ClearOptions.Target | ClearOptions.DepthBuffer, Color.Black, 1f, 0);
 
-        var prevRS = GraphicsDevice.RasterizerState;
-        GraphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
+        // Seteamos la técnica de profundidad en el shader
+        _shadowMapEffect.CurrentTechnique = _shadowMapEffect.Techniques["DepthPass"];
 
-        _shadowGenEffect.Parameters["LightViewProj"]?.SetValue(_lightViewProj);
-
-        ModelDrawingHelper.DrawDepth(_selectedCarModel, _carWorld, _shadowGenEffect);
-
-        ModelDrawingHelper.DrawDepth(_trackModel, trackWorld, _shadowGenEffect);
-
-        foreach (var envObj in _environmentObjects)
-        {
-            var model = GetModelByEnvType(envObj);
-            if (model != null)
-                ModelDrawingHelper.DrawDepth(model, envObj.World, _shadowGenEffect);
-        }
-
-        foreach (var trafficCar in _trafficCars)
-            ModelDrawingHelper.DrawDepth(trafficCar.CarModel, trafficCar.World, _shadowGenEffect);
-
-        foreach (var collectible in _collectibles)
-            ModelDrawingHelper.DrawDepth(_coinModel, collectible.World, _shadowGenEffect);
-
-        foreach (var obstacle in _obstacles)
-            ModelDrawingHelper.DrawDepth(_rockModel, obstacle.World, _shadowGenEffect);
-
-        GraphicsDevice.RasterizerState = prevRS;
-        GraphicsDevice.SetRenderTarget(null);
+        // Llamamos al helper que itera los objetos
+        DrawSceneForShadows();
     }
 
-    private Model GetModelByEnvType(EnvironmentObject envObj) => envObj.Type switch
+    private void DrawMainPass(GameTime gameTime)
     {
-        EnvironmentObjectType.House => _houseModel,
-        EnvironmentObjectType.Tree => _treeModel,
-        EnvironmentObjectType.Rock => _rockModel,
-        EnvironmentObjectType.Plant => _plantModel,
-        _ => null
-    };
+        GraphicsDevice.SetRenderTarget(null); // Volvemos a la pantalla
+        GraphicsDevice.Clear(Color.CornflowerBlue);
 
+        // Seteamos la técnica de iluminación + sombras
+        _shadowMapEffect.CurrentTechnique = _shadowMapEffect.Techniques["DrawShadowedPCF"];
+
+        // Parámetros globales del Shader (Luz, Cámara, Sombras)
+        Matrix lightViewProj = _lightView * _lightProjection;
+        _shadowMapEffect.Parameters["LightViewProjection"]?.SetValue(lightViewProj);
+        _shadowMapEffect.Parameters["lightPosition"]?.SetValue(_lightPosition);
+        _shadowMapEffect.Parameters["eyePosition"]?.SetValue(_camera.Position);
+        _shadowMapEffect.Parameters["shadowMap"]?.SetValue(_shadowMapRenderTarget);
+        _shadowMapEffect.Parameters["shadowMapSize"]?.SetValue(new Vector2(ShadowmapSize));
+
+        // Ajustes de iluminación
+        _shadowMapEffect.Parameters["ambientColor"]?.SetValue(new Vector3(0.3f));
+        _shadowMapEffect.Parameters["specularColor"]?.SetValue(new Vector3(1f));
+        _shadowMapEffect.Parameters["shininess"]?.SetValue(32f);
+
+        // Llamamos al helper que itera los objetos
+        DrawSceneWithShadows(gameTime);
+    }
+
+    private void DrawSceneForShadows()
+    {
+        Matrix lightViewProj = _lightView * _lightProjection;
+
+        // Helper local para no repetir código
+        void DrawDepthModel(Model model, Matrix world)
+        {
+            foreach (var mesh in model.Meshes)
+            {
+                foreach (var part in mesh.MeshParts) part.Effect = _shadowMapEffect;
+
+                Matrix finalWorld = mesh.ParentBone.Transform * world;
+                _shadowMapEffect.Parameters["WorldViewProjection"].SetValue(finalWorld * lightViewProj);
+                mesh.Draw();
+            }
+        }
+
+        // 1. Auto y Pista
+        if (_carVisibleDuringInvincibility) DrawDepthModel(_selectedCarModel, _carWorld);
+        DrawDepthModel(_trackModel, trackWorld);
+
+        // 2. Entorno
+        foreach (var env in _environmentObjects)
+        {
+            Model m = env.Type switch
+            {
+                EnvironmentObjectType.House => _houseModel,
+                EnvironmentObjectType.Tree => _treeModel,
+                EnvironmentObjectType.Rock => _rockModel,
+                EnvironmentObjectType.Plant => _plantModel,
+                _ => null
+            };
+            if (m != null) DrawDepthModel(m, env.World);
+        }
+
+        // 3. Tráfico
+        foreach (var car in _trafficCars) DrawDepthModel(car.CarModel, car.World);
+
+        // 4. Coleccionables y Obstáculos
+        foreach (var item in _collectibles) if (item.IsActive)
+                DrawDepthModel(item.Type == CollectibleType.Coin ? _coinModel : item.Type == CollectibleType.Gas ? _gasModel : _wrenchModel, item.World);
+
+        foreach (var obs in _obstacles)
+            DrawDepthModel(obs.Type == ObstacleType.Cow ? _cowModel : obs.Type == ObstacleType.Deer ? _deerModel : _goatModel, obs.World);
+    }
+
+    private void DrawSceneWithShadows(GameTime gameTime)
+    {
+        Matrix viewProj = _camera.View * _camera.Projection;
+
+        // Helper local para dibujar con el shader completo
+        void DrawLitModel(Model model, Matrix world, Color color, Texture2D texture = null)
+        {
+            foreach (var mesh in model.Meshes)
+            {
+                foreach (var part in mesh.MeshParts) part.Effect = _shadowMapEffect;
+
+                Matrix finalWorld = mesh.ParentBone.Transform * world;
+
+                // Matrices
+                _shadowMapEffect.Parameters["World"].SetValue(finalWorld);
+                _shadowMapEffect.Parameters["WorldViewProjection"].SetValue(finalWorld * viewProj);
+                _shadowMapEffect.Parameters["InverseTransposeWorld"].SetValue(Matrix.Transpose(Matrix.Invert(finalWorld)));
+
+                // Material
+                if (texture != null)
+                {
+                    _shadowMapEffect.Parameters["useTexture"].SetValue(1f);
+                    _shadowMapEffect.Parameters["baseTexture"].SetValue(texture);
+                    _shadowMapEffect.Parameters["diffuseColor"].SetValue(Vector3.One);
+                }
+                else
+                {
+                    _shadowMapEffect.Parameters["useTexture"].SetValue(0f);
+                    _shadowMapEffect.Parameters["diffuseColor"].SetValue(color.ToVector3());
+                }
+                mesh.Draw();
+            }
+        }
+
+        // 1. Auto
+        if (_carVisibleDuringInvincibility) DrawLitModel(_selectedCarModel, _carWorld, _selectedCarColor);
+
+        // 2. Pista (¡Con Textura!)
+        DrawLitModel(_trackModel, trackWorld, Color.White, _roadTexture);
+
+        // 3. Entorno (Con Frustum Culling)
+        foreach (var env in _environmentObjects)
+        {
+            if (!_camera.Frustum.Intersects(env.BoundingSphere)) continue;
+            Color c = env.Type switch
+            {
+                EnvironmentObjectType.House => Color.SaddleBrown,
+                EnvironmentObjectType.Tree => Color.Green,
+                EnvironmentObjectType.Rock => Color.Gray,
+                EnvironmentObjectType.Plant => Color.LightGreen,
+                _ => Color.White
+            };
+            Model m = env.Type switch
+            {
+                EnvironmentObjectType.House => _houseModel,
+                EnvironmentObjectType.Tree => _treeModel,
+                EnvironmentObjectType.Rock => _rockModel,
+                EnvironmentObjectType.Plant => _plantModel,
+                _ => null
+            };
+            if (m != null) DrawLitModel(m, env.World, c);
+        }
+
+        // 4. Tráfico
+        foreach (var car in _trafficCars)
+            if (_camera.Frustum.Intersects(car.BoundingSphere)) DrawLitModel(car.CarModel, car.World, Color.Magenta);
+
+        // 5. Coleccionables y Obstáculos
+        foreach (var item in _collectibles)
+            if (item.IsActive && _camera.Frustum.Intersects(item.BoundingSphere))
+                DrawLitModel(item.Type == CollectibleType.Coin ? _coinModel : item.Type == CollectibleType.Gas ? _gasModel : _wrenchModel, item.World,
+                             item.Type == CollectibleType.Coin ? Color.Gold : item.Type == CollectibleType.Gas ? Color.DarkRed : Color.LightGray);
+
+        foreach (var obs in _obstacles)
+            if (_camera.Frustum.Intersects(obs.BoundingSphere))
+                DrawLitModel(obs.Type == ObstacleType.Cow ? _cowModel : obs.Type == ObstacleType.Deer ? _deerModel : _goatModel, obs.World,
+                             obs.Type == ObstacleType.Cow ? Color.White : obs.Type == ObstacleType.Deer ? Color.SaddleBrown : Color.LightGray);
+
+        // 6. Ruta y Piso (Quads Manuales)
+        _shadowMapEffect.Parameters["useTexture"].SetValue(1f);
+        _shadowMapEffect.Parameters["diffuseColor"].SetValue(Vector3.One);
+
+        // Ruta
+        _shadowMapEffect.Parameters["World"].SetValue(_roadWorld);
+        _shadowMapEffect.Parameters["WorldViewProjection"].SetValue(_roadWorld * viewProj);
+        _shadowMapEffect.Parameters["InverseTransposeWorld"].SetValue(Matrix.Transpose(Matrix.Invert(_roadWorld)));
+        _shadowMapEffect.Parameters["baseTexture"].SetValue(_roadTexture);
+        _road.Draw(_shadowMapEffect);
+
+        // --- Piso (Quad) ---
+        // Usamos el GrassShader NUEVO que ahora soporta sombras
+
+        // Parámetros de Transformación y Pasto
+        // _grassShader.Parameters["World"]?.SetValue(_floorWorld);
+        // _grassShader.Parameters["View"]?.SetValue(_camera.View);
+        // _grassShader.Parameters["Projection"]?.SetValue(_camera.Projection);
+        // _grassShader.Parameters["Time"]?.SetValue((float)gameTime.TotalGameTime.TotalSeconds);
+        // _grassShader.Parameters["GrassTexture"]?.SetValue(_grassTexture);
+        // _grassShader.Parameters["Tiling"]?.SetValue(10000f);
+
+        // // Parámetros de Sombra (NUEVOS en el GrassShader)
+        // _grassShader.Parameters["LightViewProjection"]?.SetValue(_lightView * _lightProjection);
+        // _grassShader.Parameters["ShadowMap"]?.SetValue(_shadowMapRenderTarget);
+        // _grassShader.Parameters["ShadowMapTexelSize"]?.SetValue(new Vector2(1f / ShadowmapSize));
+
+        // Ajustes opcionales de viento/color si querés
+        // _grassShader.Parameters["WindSpeed"].SetValue(1.0f);
+
+        GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
+        // Draw the floor
+        _grassShader.Parameters["View"].SetValue(_camera.View);
+        _grassShader.Parameters["Projection"].SetValue(_camera.Projection);
+        _grassShader.Parameters["World"].SetValue(_floorWorld);
+        _grassShader.Parameters["Time"].SetValue((float)gameTime.TotalGameTime.TotalSeconds);
+
+        // tuning
+        _grassShader.Parameters["WindSpeed"].SetValue(1.0f);
+        _grassShader.Parameters["WindScale"].SetValue(0.12f);
+        _grassShader.Parameters["WindStrength"].SetValue(0.6f);
+        _grassShader.Parameters["Exposure"].SetValue(1.4f);
+
+        _grassShader.Parameters["Tiling"].SetValue(1000f);          // cuantas repeticiones de la textura
+        _grassShader.Parameters["ScrollSpeed"].SetValue(0.0f); // if != 0, the texture will move
+        _grassShader.Parameters["TextureInfluence"].SetValue(0.65f);
+        _grassShader.Parameters["GrassTexture"].SetValue(_grassTexture);
+        _floor.Draw(_grassShader);
+
+        // Líneas amarillas (si las querés conservar)
+        _shadowMapEffect.Parameters["useTexture"].SetValue(0f);
+        _shadowMapEffect.Parameters["diffuseColor"].SetValue(Color.Yellow.ToVector3());
+        for (float z = -_roadLength + _lineSpacing; z < _roadLength; z += _lineSpacing)
+        {
+            _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 1f, z));
+            _shadowMapEffect.Parameters["World"].SetValue(_lineWorld);
+            _shadowMapEffect.Parameters["WorldViewProjection"].SetValue(_lineWorld * viewProj);
+            // InverseTranspose no es critico para planos sin luz compleja, pero podes setearlo
+            _line.Draw(_shadowMapEffect);
+        }
+    }
     #endregion
 
     /// <summary>
@@ -621,27 +791,29 @@ public class TGCGame : Game
         // En el juego no pueden usar BasicEffect de MG, deben usar siempre efectos propios.
         _basicShader = Content.Load<Effect>(ContentFolderEffects + "BasicShader");
         _grassShader = Content.Load<Effect>(ContentFolderEffects + "GrassShader");
-        _shadowGenEffect = Content.Load<Effect>("Effects/ShadowGen");
-        _shadowedEffect = Content.Load<Effect>("Effects/ShadowedBasicShader");
-        // Crear shadow map RT (usa SurfaceFormat.Single para guardar depth en R)
-        int shadowSize = 2048; // 1024 o 2048 dependiendo de calidad/performance
-        _shadowMapRT = new RenderTarget2D(GraphicsDevice, shadowSize, shadowSize, false, SurfaceFormat.Single, DepthFormat.Depth24);
+        _shadowMapEffect = Content.Load<Effect>(ContentFolderEffects + "ShadowMap");
+        // Crear el RenderTarget (igual que la cátedra)
+        _shadowMapRenderTarget = new RenderTarget2D(GraphicsDevice, ShadowmapSize, ShadowmapSize, false,
+            SurfaceFormat.Single, DepthFormat.Depth24, 0, RenderTargetUsage.PlatformContents);
+
+        // Configurar parámetros constantes del efecto una sola vez
+        _shadowMapEffect.Parameters["shadowMapSize"]?.SetValue(Vector2.One * ShadowmapSize);
 
         // Asigno el efecto que cargue a cada parte del mesh.
-        ModelDrawingHelper.AttachEffectToModel(_racingCarModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_cybertruckModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_f1CarModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_treeModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_houseModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_trackModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_plantModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_rockModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_gasModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_wrenchModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_coinModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_cowModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_deerModel, _shadowedEffect);
-        ModelDrawingHelper.AttachEffectToModel(_goatModel, _shadowedEffect);
+        ModelDrawingHelper.AttachEffectToModel(_racingCarModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_cybertruckModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_f1CarModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_treeModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_houseModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_trackModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_plantModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_rockModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_gasModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_wrenchModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_coinModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_cowModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_deerModel, _shadowMapEffect);
+        ModelDrawingHelper.AttachEffectToModel(_goatModel, _shadowMapEffect);
         #endregion
 
         #region WheelsDetached
@@ -876,8 +1048,8 @@ public class TGCGame : Game
                     _selectedCarModel = _racingCarModel;
                     _selectedCarColor = Color.Blue;
                     // Parámetros Equilibrados: Buena velocidad y aceleración, frenado decente, drift moderado
-                    MaxSpeed = 400f;
-                    Acceleration = 170f;
+                    MaxSpeed = 450f;
+                    Acceleration = 200f;
                     BrakeDeceleration = 200f;
                     DriftFactor = 0.92f;
                     _maxHealth = 150f;
@@ -890,8 +1062,8 @@ public class TGCGame : Game
                     _selectedCarModel = _cybertruckModel;
                     _selectedCarColor = Color.DarkGray;
                     // Parámetros "Pesados": Menor velocidad y aceleración, frenado pobre, mucho drift (poco agarre)
-                    MaxSpeed = 300f;
-                    Acceleration = 130f;
+                    MaxSpeed = 380f;
+                    Acceleration = 160f;
                     BrakeDeceleration = 150f;
                     DriftFactor = 0.95f;
                     _maxHealth = 200f;
@@ -1114,8 +1286,6 @@ public class TGCGame : Game
     /// </summary>
     protected override void Draw(GameTime gameTime)
     {
-        var frustum = _camera.Frustum;
-
         switch (status)
         {
             case ST_PRESENTACION:
@@ -1125,18 +1295,25 @@ public class TGCGame : Game
                 DrawMenu(_menuSelection);
                 break;
             case ST_STAGE_1:
-                RenderShadowMap();
+                DrawShadowMapPass();
+                DrawMainPass(gameTime);
 
-                // Cielo
-                GraphicsDevice.SetRenderTarget(null);
-                GraphicsDevice.Clear(Color.CornflowerBlue);
+                // if (_carVisibleDuringInvincibility)
+                // {
+                //     ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                // }
 
-                _shadowedEffect.Parameters["ShadowMap"]?.SetValue(_shadowMapRT);
-                _shadowedEffect.Parameters["LightViewProj"]?.SetValue(_lightViewProj);
-                _shadowedEffect.Parameters["LightDirection"]?.SetValue(_lightDirection);
-                _shadowedEffect.Parameters["CameraPosition"]?.SetValue(_camera.Position);
-                _shadowedEffect.Parameters["ShadowMapTexelSize"]?.SetValue(new Vector2(1f / _shadowMapRT.Width, 1f / _shadowMapRT.Height));
+                // // Dibujar múltiples árboles a ambos lados del camino
+                // float treeSpacing = 200f; // Espaciado entre árboles
+                // float treeDistance = 120f; // Distancia desde el centro del camino
 
+                // for (float z = -_roadLength + treeSpacing; z < _roadLength; z += treeSpacing)
+                // {
+                //     // Árboles del lado derecho (X positivo)
+                //     Matrix rightTreeWorld = Matrix.CreateScale(20f + (z % 100) / 20f) * // Variación de tamaño de los árboles
+                //                            Matrix.CreateRotationY(z * 0.01f) * // Rotación de los árboles
+                //                            Matrix.CreateTranslation(new Vector3(treeDistance, 0f, z));
+                //     ModelDrawingHelper.Draw(_treeModel, rightTreeWorld, _camera.View, _camera.Projection, Color.Green, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
                 if (_carVisibleDuringInvincibility)
                 {
                     if (_wheelsDetached)
@@ -1153,254 +1330,268 @@ public class TGCGame : Game
                     }
                 }
 
-                // Dibujar múltiples árboles a ambos lados del camino
-                float treeSpacing = 200f; // Espaciado entre árboles
-                float treeDistance = 120f; // Distancia desde el centro del camino
+                //     // Árboles del lado izquierdo (X negativo)
+                //     Matrix leftTreeWorld = Matrix.CreateScale(15f + ((z + 50) % 100) / 15f) * // Variación de tamaño de los árboles
+                //                           Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de los árboles
+                //                           Matrix.CreateTranslation(new Vector3(-treeDistance, 0f, z + 100f)); // Offset para que no estén alineados los árboles
+                //     ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                // }
 
-                for (float z = -_roadLength + treeSpacing; z < _roadLength; z += treeSpacing)
-                {
-                    // Árboles del lado derecho (X positivo)
-                    Matrix rightTreeWorld = Matrix.CreateScale(20f + (z % 100) / 20f) * // Variación de tamaño de los árboles
-                                           Matrix.CreateRotationY(z * 0.01f) * // Rotación de los árboles
-                                           Matrix.CreateTranslation(new Vector3(treeDistance, 0f, z));
-                    ModelDrawingHelper.Draw(_treeModel, rightTreeWorld, _camera.View, _camera.Projection, Color.Green, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                // GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
+                // // Draw the floor
+                // // _grassShader.Parameters["View"].SetValue(_camera.View);
+                // // _grassShader.Parameters["Projection"].SetValue(_camera.Projection);
+                // // _grassShader.Parameters["World"].SetValue(_floorWorld);
+                // // _grassShader.Parameters["Time"].SetValue((float)gameTime.TotalGameTime.TotalSeconds);
 
-                    // Árboles del lado izquierdo (X negativo)
-                    Matrix leftTreeWorld = Matrix.CreateScale(15f + ((z + 50) % 100) / 15f) * // Variación de tamaño de los árboles
-                                          Matrix.CreateRotationY((z + 100) * 0.01f) * // Rotación de los árboles
-                                          Matrix.CreateTranslation(new Vector3(-treeDistance, 0f, z + 100f)); // Offset para que no estén alineados los árboles
-                    ModelDrawingHelper.Draw(_treeModel, leftTreeWorld, _camera.View, _camera.Projection, Color.Green, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                }
+                // // // tuning
+                // // _grassShader.Parameters["WindSpeed"].SetValue(1.0f);
+                // // _grassShader.Parameters["WindScale"].SetValue(0.12f);
+                // // _grassShader.Parameters["WindStrength"].SetValue(0.6f);
+                // // _grassShader.Parameters["Exposure"].SetValue(1.4f);
 
-                GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
-                // Draw the floor
-                _grassShader.Parameters["View"].SetValue(_camera.View);
-                _grassShader.Parameters["Projection"].SetValue(_camera.Projection);
-                _grassShader.Parameters["World"].SetValue(_floorWorld);
-                _grassShader.Parameters["Time"].SetValue((float)gameTime.TotalGameTime.TotalSeconds);
+                // // _grassShader.Parameters["Tiling"].SetValue(1000f);          // cuantas repeticiones de la textura
+                // // _grassShader.Parameters["ScrollSpeed"].SetValue(0.0f); // if != 0, the texture will move
+                // // _grassShader.Parameters["TextureInfluence"].SetValue(0.65f);
+                // // _grassShader.Parameters["GrassTexture"].SetValue(_grassTexture);
 
-                // tuning
-                _grassShader.Parameters["WindSpeed"].SetValue(1.0f);
-                _grassShader.Parameters["WindScale"].SetValue(0.12f);
-                _grassShader.Parameters["WindStrength"].SetValue(0.6f);
-                _grassShader.Parameters["Exposure"].SetValue(1.4f);
+                // // Configuración de sombras para el piso
+                // _shadowedEffect.Parameters["World"]?.SetValue(_floorWorld);
+                // _shadowedEffect.Parameters["View"]?.SetValue(_camera.View);
+                // _shadowedEffect.Parameters["Projection"]?.SetValue(_camera.Projection);
+                // _shadowedEffect.Parameters["CameraPosition"]?.SetValue(_camera.Position);
 
-                _grassShader.Parameters["Tiling"].SetValue(1000f);          // cuantas repeticiones de la textura
-                _grassShader.Parameters["ScrollSpeed"].SetValue(0.0f); // if != 0, the texture will move
-                _grassShader.Parameters["TextureInfluence"].SetValue(0.65f);
-                _grassShader.Parameters["GrassTexture"].SetValue(_grassTexture);
-                _floor.Draw(_grassShader);
+                // _shadowedEffect.Parameters["LightViewProj"]?.SetValue(_lightViewProj);
+                // _shadowedEffect.Parameters["ShadowMap"]?.SetValue(_shadowMapRT);
+                // _shadowedEffect.Parameters["LightDirection"]?.SetValue(_lightDirection);
+                // _shadowedEffect.Parameters["ShadowMapTexelSize"]?.SetValue(new Vector2(1f / _shadowMapRT.Width, 1f / _shadowMapRT.Height));
+                // _shadowedEffect.Parameters["UseTexture"]?.SetValue(1f);
+                // _shadowedEffect.Parameters["MainTexture"]?.SetValue(_grassTexture);
 
-                Matrix[] houseWorlds =
-                {
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-2500),
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300, 1.02f, -2000),
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-1500),
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,-1000),
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-500),
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,0),
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,500),
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,1000),
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,1500),
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,2000),
-                    Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,2500)
-                };
+                // _floor.Draw(_shadowedEffect);
 
-                foreach (var world in houseWorlds)
-                {
-                    ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                }
+                // Matrix[] houseWorlds =
+                // {
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-2500),
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300, 1.02f, -2000),
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-1500),
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,-1000),
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,-500),
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,0),
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,500),
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,1000),
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,1500),
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(-300,1.02f,2000),
+                //     Matrix.CreateScale(0.4f) * Matrix.CreateTranslation(300,1.02f,2500)
+                // };
 
-                #region Environment 
+                // foreach (var world in houseWorlds)
+                // {
+                //     ModelDrawingHelper.Draw(_houseModel, world, _camera.View, _camera.Projection, Color.FromNonPremultiplied(61, 38, 29, 255), _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                // }
 
-                // Dibujar objetos de environment en cada posición de empty
-                foreach (var envObject in _environmentObjects)
-                {
-                    if (!frustum.Intersects(envObject.BoundingSphere))
-                        continue;
+                // #region Environment 
 
-                    Model modelToDraw = null;
-                    Color color = Color.White;
+                // // Dibujar objetos de environment en cada posición de empty
+                // foreach (var envObject in _environmentObjects)
+                // {
+                //     if (!frustum.Intersects(envObject.BoundingSphere))
+                //         continue;
 
-                    switch (envObject.Type)
-                    {
-                        case EnvironmentObjectType.House:
-                            modelToDraw = _houseModel;
-                            color = Color.SaddleBrown;
-                            break;
-                        case EnvironmentObjectType.Tree:
-                            modelToDraw = _treeModel;
-                            color = Color.Green;
-                            break;
-                        case EnvironmentObjectType.Rock:
-                            modelToDraw = _rockModel;
-                            color = Color.Gray;
-                            break;
-                        case EnvironmentObjectType.Plant:
-                            modelToDraw = _plantModel;
-                            color = Color.LightGreen;
-                            break;
-                    }
+                //     Model modelToDraw = null;
+                //     Color color = Color.White;
 
-                    if (modelToDraw != null)
-                    {
-                        ModelDrawingHelper.Draw(modelToDraw, envObject.World, _camera.View, _camera.Projection, color, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                    }
-                }
+                //     switch (envObject.Type)
+                //     {
+                //         case EnvironmentObjectType.House:
+                //             modelToDraw = _houseModel;
+                //             color = Color.SaddleBrown;
+                //             break;
+                //         case EnvironmentObjectType.Tree:
+                //             modelToDraw = _treeModel;
+                //             color = Color.Green;
+                //             break;
+                //         case EnvironmentObjectType.Rock:
+                //             modelToDraw = _rockModel;
+                //             color = Color.Gray;
+                //             break;
+                //         case EnvironmentObjectType.Plant:
+                //             modelToDraw = _plantModel;
+                //             color = Color.LightGreen;
+                //             break;
+                //     }
 
-                #endregion
+                //     if (modelToDraw != null)
+                //     {
+                //         ModelDrawingHelper.Draw(modelToDraw, envObject.World, _camera.View, _camera.Projection, color, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                //     }
+                // }
 
-                #region Road original
-                _basicShader.Parameters["World"].SetValue(_roadWorld);
-                _basicShader.Parameters["View"].SetValue(_camera.View);
-                _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
-                _basicShader.Parameters["CameraPosition"].SetValue(_camera.Position);
-                _basicShader.Parameters["UseTexture"].SetValue(1f);
-                _basicShader.Parameters["MainTexture"].SetValue(_roadTexture);
-                _basicShader.Parameters["LightDirection"].SetValue(_lightDirection);
-                _basicShader.Parameters["AmbientColor"].SetValue(new Vector3(0.2f));
-                _basicShader.Parameters["SpecularColor"].SetValue(Vector3.One);
-                _basicShader.Parameters["Shininess"].SetValue(32f);
-                _road.Draw(_basicShader);
+                // #endregion
 
-                for (float z = -_roadLength + _lineSpacing; z < _roadLength; z += _lineSpacing)
-                {
-                    _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 1f, z)); // 0.04 para evitar z-fighting
+                // #region Road original
+                // // Configuramos el efecto de sombras para la ruta
+                // _shadowedEffect.Parameters["World"]?.SetValue(_roadWorld);
+                // _shadowedEffect.Parameters["View"]?.SetValue(_camera.View);
+                // _shadowedEffect.Parameters["Projection"]?.SetValue(_camera.Projection);
+                // _shadowedEffect.Parameters["CameraPosition"]?.SetValue(_camera.Position);
 
-                    _basicShader.Parameters["World"].SetValue(_lineWorld);
-                    _basicShader.Parameters["View"].SetValue(_camera.View);
-                    _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
-                    _basicShader.Parameters["CameraPosition"].SetValue(_camera.Position);
-                    _basicShader.Parameters["UseTexture"].SetValue(0f);
-                    _basicShader.Parameters["DiffuseColor"].SetValue(Color.Yellow.ToVector3());
-                    _line.Draw(_basicShader);
-                }
+                // // Datos de Luz y Sombras (CRUCIAL)
+                // _shadowedEffect.Parameters["LightViewProj"]?.SetValue(_lightViewProj);
+                // _shadowedEffect.Parameters["ShadowMap"]?.SetValue(_shadowMapRT);
+                // _shadowedEffect.Parameters["LightDirection"]?.SetValue(_lightDirection);
+                // _shadowedEffect.Parameters["ShadowMapTexelSize"]?.SetValue(new Vector2(1f / _shadowMapRT.Width, 1f / _shadowMapRT.Height));
 
-                // Pista Nurburing
-                ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, _roadTexture, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                #endregion
+                // // Textura
+                // _shadowedEffect.Parameters["UseTexture"]?.SetValue(1f);
+                // _shadowedEffect.Parameters["MainTexture"]?.SetValue(_roadTexture);
 
-                #region Coleccionables
-                foreach (var collectible in _collectibles)
-                {
-                    // OPTIMIZACION PARA NO RENDERIZAR LO QUE NO SE ESTA VIENDO
-                    if (!frustum.Intersects(collectible.BoundingSphere))
-                        continue;
+                // // Material
+                // _shadowedEffect.Parameters["AmbientColor"]?.SetValue(new Vector3(0.2f));
+                // _shadowedEffect.Parameters["SpecularColor"]?.SetValue(Vector3.One);
+                // _shadowedEffect.Parameters["Shininess"]?.SetValue(32f);
 
-                    if (collectible.IsActive)
-                    {
-                        switch (collectible.Type)
-                        {
-                            case CollectibleType.Coin:
-                                ModelDrawingHelper.Draw(_coinModel, collectible.World, _camera.View, _camera.Projection, Color.Gold, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                                break;
-                            case CollectibleType.Gas:
-                                ModelDrawingHelper.Draw(_gasModel, collectible.World, _camera.View, _camera.Projection, Color.DarkRed, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                                break;
-                            case CollectibleType.Wrench:
-                                ModelDrawingHelper.Draw(_wrenchModel, collectible.World, _camera.View, _camera.Projection, Color.LightGray, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                                break;
-                        }
-                    }
-                }
-                #endregion
+                // // Dibujamos la ruta con el efecto de sombras
+                // _road.Draw(_shadowedEffect);
 
-                #region Obstaculos
-                foreach (var obstacle in _obstacles)
-                {
-                    if (!frustum.Intersects(obstacle.BoundingSphere))
-                        continue;
+                // for (float z = -_roadLength + _lineSpacing; z < _roadLength; z += _lineSpacing)
+                // {
+                //     _lineWorld = Matrix.CreateScale(_lineWidth, 1f, _lineLength) * Matrix.CreateTranslation(new Vector3(0, 1f, z)); // 0.04 para evitar z-fighting
 
-                    switch (obstacle.Type)
-                    {
-                        case ObstacleType.Cow:
-                            ModelDrawingHelper.Draw(_cowModel, obstacle.World, _camera.View, _camera.Projection, Color.White, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                            break;
-                        case ObstacleType.Deer:
-                            ModelDrawingHelper.Draw(_deerModel, obstacle.World, _camera.View, _camera.Projection, Color.SaddleBrown, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                            break;
-                        case ObstacleType.Goat:
-                            ModelDrawingHelper.Draw(_goatModel, obstacle.World, _camera.View, _camera.Projection, Color.LightGray, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                            break;
-                    }
-                }
-                #endregion
+                //     _basicShader.Parameters["World"].SetValue(_lineWorld);
+                //     _basicShader.Parameters["View"].SetValue(_camera.View);
+                //     _basicShader.Parameters["Projection"].SetValue(_camera.Projection);
+                //     _basicShader.Parameters["CameraPosition"].SetValue(_camera.Position);
+                //     _basicShader.Parameters["UseTexture"].SetValue(0f);
+                //     _basicShader.Parameters["DiffuseColor"].SetValue(Color.Yellow.ToVector3());
+                //     _line.Draw(_basicShader);
+                // }
 
-                #region Trafico
-                foreach (var trafficCar in _trafficCars)
-                {
-                    if (!frustum.Intersects(trafficCar.BoundingSphere))
-                        continue;
+                // // Pista Nurburing
+                // ModelDrawingHelper.Draw(_trackModel, trackWorld, _camera.View, _camera.Projection, _roadTexture, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                // #endregion
 
-                    ModelDrawingHelper.Draw(trafficCar.CarModel, trafficCar.World, _camera.View, _camera.Projection, Color.Magenta, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                }
-                #endregion
+                // #region Coleccionables
+                // foreach (var collectible in _collectibles)
+                // {
+                //     // OPTIMIZACION PARA NO RENDERIZAR LO QUE NO SE ESTA VIENDO
+                //     if (!frustum.Intersects(collectible.BoundingSphere))
+                //         continue;
 
-                #region Modo debug
-                if (_debugModeEnabled)
-                {
-                    #region Dibujado de Esferas de Debug
-                    GraphicsDevice.RasterizerState = _wireframeRasterizerState;
+                //     if (collectible.IsActive)
+                //     {
+                //         switch (collectible.Type)
+                //         {
+                //             case CollectibleType.Coin:
+                //                 ModelDrawingHelper.Draw(_coinModel, collectible.World, _camera.View, _camera.Projection, Color.Gold, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                //                 break;
+                //             case CollectibleType.Gas:
+                //                 ModelDrawingHelper.Draw(_gasModel, collectible.World, _camera.View, _camera.Projection, Color.DarkRed, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                //                 break;
+                //             case CollectibleType.Wrench:
+                //                 ModelDrawingHelper.Draw(_wrenchModel, collectible.World, _camera.View, _camera.Projection, Color.LightGray, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                //                 break;
+                //         }
+                //     }
+                // }
+                // #endregion
 
-                    // Dibujar la esfera del auto
-                    var carSphereWorld = Matrix.CreateScale(_carBoundingSphere.Radius * DebugSphereVisualCorrection) * Matrix.CreateTranslation(_carBoundingSphere.Center);
-                    ModelDrawingHelper.Draw(_debugSphereModel, carSphereWorld, _camera.View, _camera.Projection, Color.Blue, _basicShader);
+                // #region Obstaculos
+                // foreach (var obstacle in _obstacles)
+                // {
+                //     if (!frustum.Intersects(obstacle.BoundingSphere))
+                //         continue;
 
-                    // Dibujar la esfera de cada coleccionable activo
-                    foreach (var collectible in _collectibles)
-                    {
-                        if (collectible.IsActive)
-                        {
-                            var collectibleSphereWorld = Matrix.CreateScale(collectible.BoundingSphere.Radius * DebugSphereVisualCorrection) * Matrix.CreateTranslation(collectible.BoundingSphere.Center);
-                            ModelDrawingHelper.Draw(_debugSphereModel, collectibleSphereWorld, _camera.View, _camera.Projection, Color.Yellow, _basicShader);
-                        }
-                    }
+                //     switch (obstacle.Type)
+                //     {
+                //         case ObstacleType.Cow:
+                //             ModelDrawingHelper.Draw(_cowModel, obstacle.World, _camera.View, _camera.Projection, Color.White, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                //             break;
+                //         case ObstacleType.Deer:
+                //             ModelDrawingHelper.Draw(_deerModel, obstacle.World, _camera.View, _camera.Projection, Color.SaddleBrown, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                //             break;
+                //         case ObstacleType.Goat:
+                //             ModelDrawingHelper.Draw(_goatModel, obstacle.World, _camera.View, _camera.Projection, Color.LightGray, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                //             break;
+                //     }
+                // }
+                // #endregion
 
-                    // Dibujar la esfera de cada obstáculo
-                    foreach (var obstacle in _obstacles)
-                    {
-                        var obstacleSphereWorld = Matrix.CreateScale(obstacle.BoundingSphere.Radius * DebugSphereVisualCorrection) * Matrix.CreateTranslation(obstacle.BoundingSphere.Center);
-                        ModelDrawingHelper.Draw(_debugSphereModel, obstacleSphereWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
-                    }
+                // #region Trafico
+                // foreach (var trafficCar in _trafficCars)
+                // {
+                //     if (!frustum.Intersects(trafficCar.BoundingSphere))
+                //         continue;
 
-                    foreach (var envObject in _environmentObjects)
-                    {
-                        if (frustum.Intersects(envObject.BoundingSphere))
-                        {
-                            var envSphereWorld = Matrix.CreateScale(envObject.BoundingSphere.Radius * DebugSphereVisualCorrection)
-                                                  * Matrix.CreateTranslation(envObject.BoundingSphere.Center);
-                            ModelDrawingHelper.Draw(_debugSphereModel, envSphereWorld, _camera.View, _camera.Projection, Color.Magenta, _basicShader);
-                        }
-                    }
+                //     ModelDrawingHelper.Draw(trafficCar.CarModel, trafficCar.World, _camera.View, _camera.Projection, Color.Magenta, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                // }
+                // #endregion
 
-                    foreach (var trafficCar in _trafficCars)
-                    {
-                        if (frustum.Intersects(trafficCar.BoundingSphere))
-                        {
-                            var trafficSphereWorld = Matrix.CreateScale(trafficCar.BoundingSphere.Radius * DebugSphereVisualCorrection)
-                                                      * Matrix.CreateTranslation(trafficCar.BoundingSphere.Center);
-                            ModelDrawingHelper.Draw(_debugSphereModel, trafficSphereWorld, _camera.View, _camera.Projection, Color.Cyan, _basicShader);
-                        }
-                    }
+                // #region Modo debug
+                // if (_debugModeEnabled)
+                // {
+                //     #region Dibujado de Esferas de Debug
+                //     GraphicsDevice.RasterizerState = _wireframeRasterizerState;
 
-                    GraphicsDevice.RasterizerState = _solidRasterizerState;
+                //     // Dibujar la esfera del auto
+                //     var carSphereWorld = Matrix.CreateScale(_carBoundingSphere.Radius * DebugSphereVisualCorrection) * Matrix.CreateTranslation(_carBoundingSphere.Center);
+                //     ModelDrawingHelper.Draw(_debugSphereModel, carSphereWorld, _camera.View, _camera.Projection, Color.Blue, _basicShader);
 
-                    float vectorLength = 100f; // Longitud visual de los vectores
+                //     // Dibujar la esfera de cada coleccionable activo
+                //     foreach (var collectible in _collectibles)
+                //     {
+                //         if (collectible.IsActive)
+                //         {
+                //             var collectibleSphereWorld = Matrix.CreateScale(collectible.BoundingSphere.Radius * DebugSphereVisualCorrection) * Matrix.CreateTranslation(collectible.BoundingSphere.Center);
+                //             ModelDrawingHelper.Draw(_debugSphereModel, collectibleSphereWorld, _camera.View, _camera.Projection, Color.Yellow, _basicShader);
+                //         }
+                //     }
 
-                    // Vector de Dirección del Auto (_carDirection) - Dibuja en Rojo
-                    Vector3 carDirStart = _carBoundingSphere.Center + Vector3.Up * 5f; // Levantar un poco para que no esté en el piso
-                    Vector3 carDirEnd = carDirStart + _carDirection * vectorLength;
-                    LineDrawer.DrawLine(GraphicsDevice, carDirStart, carDirEnd, Color.Red, _camera.View, _camera.Projection);
+                //     // Dibujar la esfera de cada obstáculo
+                //     foreach (var obstacle in _obstacles)
+                //     {
+                //         var obstacleSphereWorld = Matrix.CreateScale(obstacle.BoundingSphere.Radius * DebugSphereVisualCorrection) * Matrix.CreateTranslation(obstacle.BoundingSphere.Center);
+                //         ModelDrawingHelper.Draw(_debugSphereModel, obstacleSphereWorld, _camera.View, _camera.Projection, Color.Red, _basicShader);
+                //     }
 
-                    // Vector de Colisión (SOLO si hubo colisión) - Dibuja en Verde
-                    if (_collidedLastFrame)
-                    {
-                        Vector3 colDirEnd = carDirStart + _lastCollisionNormal * vectorLength;
-                        LineDrawer.DrawLine(GraphicsDevice, carDirStart, colDirEnd, Color.LimeGreen, _camera.View, _camera.Projection);
-                    }
-                    #endregion
-                }
-                #endregion
+                //     foreach (var envObject in _environmentObjects)
+                //     {
+                //         if (frustum.Intersects(envObject.BoundingSphere))
+                //         {
+                //             var envSphereWorld = Matrix.CreateScale(envObject.BoundingSphere.Radius * DebugSphereVisualCorrection)
+                //                                   * Matrix.CreateTranslation(envObject.BoundingSphere.Center);
+                //             ModelDrawingHelper.Draw(_debugSphereModel, envSphereWorld, _camera.View, _camera.Projection, Color.Magenta, _basicShader);
+                //         }
+                //     }
+
+                //     foreach (var trafficCar in _trafficCars)
+                //     {
+                //         if (frustum.Intersects(trafficCar.BoundingSphere))
+                //         {
+                //             var trafficSphereWorld = Matrix.CreateScale(trafficCar.BoundingSphere.Radius * DebugSphereVisualCorrection)
+                //                                       * Matrix.CreateTranslation(trafficCar.BoundingSphere.Center);
+                //             ModelDrawingHelper.Draw(_debugSphereModel, trafficSphereWorld, _camera.View, _camera.Projection, Color.Cyan, _basicShader);
+                //         }
+                //     }
+
+                //     GraphicsDevice.RasterizerState = _solidRasterizerState;
+
+                //     float vectorLength = 100f; // Longitud visual de los vectores
+
+                //     // Vector de Dirección del Auto (_carDirection) - Dibuja en Rojo
+                //     Vector3 carDirStart = _carBoundingSphere.Center + Vector3.Up * 5f; // Levantar un poco para que no esté en el piso
+                //     Vector3 carDirEnd = carDirStart + _carDirection * vectorLength;
+                //     LineDrawer.DrawLine(GraphicsDevice, carDirStart, carDirEnd, Color.Red, _camera.View, _camera.Projection);
+
+                //     // Vector de Colisión (SOLO si hubo colisión) - Dibuja en Verde
+                //     if (_collidedLastFrame)
+                //     {
+                //         Vector3 colDirEnd = carDirStart + _lastCollisionNormal * vectorLength;
+                //         LineDrawer.DrawLine(GraphicsDevice, carDirStart, colDirEnd, Color.LimeGreen, _camera.View, _camera.Projection);
+                //     }
+                //     #endregion
+                // }
+                // #endregion
 
                 #region Dibujado del HUD
                 _spriteBatch.Begin();
