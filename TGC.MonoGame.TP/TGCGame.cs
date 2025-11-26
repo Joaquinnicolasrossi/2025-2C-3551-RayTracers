@@ -1246,10 +1246,10 @@ public class TGCGame : Game
                     {
                         _selectedCarModel = _cybertruckDestroyedModel;
                     }
-                    else if (_selectedCarModel == _racingCarModel && _racingCarDestroyedModel != null)
-                    {
-                        _selectedCarModel = _racingCarDestroyedModel;
-                    }
+                    //else if (_selectedCarModel == _racingCarModel && _racingCarDestroyedModel != null)
+                    //{
+                    //    _selectedCarModel = _racingCarDestroyedModel;
+                    //}
 
                     MediaPlayer.Stop();
                     _gameOverSound?.Play();
