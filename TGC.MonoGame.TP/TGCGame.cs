@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using static TGC.MonoGame.TP.ModelDrawingHelper;
 
 namespace TGC.MonoGame.TP;
 
@@ -195,6 +196,11 @@ public class TGCGame : Game
     private SoundEffect _gameOverSound;
     #endregion
 
+    #region WheelsDetached
+    private WheelManager _wheelManager;
+    private bool _wheelsDetached = false;
+    #endregion
+
     #endregion
 
     /// <summary>
@@ -372,6 +378,10 @@ public class TGCGame : Game
         // Estado del juego reiniciado a menu
         status = ST_PRESENTACION;
         _gameOver = false;
+
+        // --- RESET WHEELS STATE: important when restarting without recompiling ---
+        _wheelsDetached = false;
+        _wheelManager = new WheelManager();
     }
 
     private void DrawMenu(Texture2D menu)
@@ -632,6 +642,10 @@ public class TGCGame : Game
         ModelDrawingHelper.AttachEffectToModel(_cowModel, _shadowedEffect);
         ModelDrawingHelper.AttachEffectToModel(_deerModel, _shadowedEffect);
         ModelDrawingHelper.AttachEffectToModel(_goatModel, _shadowedEffect);
+        #endregion
+
+        #region WheelsDetached
+        _wheelManager = new WheelManager();
         #endregion
 
         #region Terrenos
@@ -1069,6 +1083,26 @@ public class TGCGame : Game
                 }
                 break;
         }
+        _wheelManager?.Update(deltaTime);
+        if (_gameOver && !_wheelsDetached)
+        {
+            // carForward : direction approximative du véhicule
+            var carForward = _carDirection;
+            // carSpeed : vitesse actuelle (peut influencer l'impulsion initiale)
+            var carSpeed = _carSpeed;
+
+            // Détache les roues du modèle sélectionné et crée les pièces physiques
+            _wheelManager?.DetachWheels(
+                _selectedCarModel,
+                _carWorld,
+                carForward,
+                carSpeed,
+                piecesPerCar: 1,   // nombre de morceaux par roue (ajuster)
+                lifeSeconds: 5f,   // durée de vie des pièces
+                outwardImpulse: 0.005f); // force d'expulsion initiale
+
+            _wheelsDetached = true;
+        }
         _previousKeyboardState = keyboardState;
         _camera.Update(_carWorld, _carRotation);
         base.Update(gameTime);
@@ -1105,7 +1139,18 @@ public class TGCGame : Game
 
                 if (_carVisibleDuringInvincibility)
                 {
-                    ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                    if (_wheelsDetached)
+                    {
+                        // Dessine la carrosserie en ignorant les meshes/parentbones correspondant aux roues
+                        var skip = _wheelManager?.GetDetachedMeshNames() ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        MeshDrawingHelper.DrawModelExcept(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT, skip);
+                        // Dessine les roues détachées
+                        _wheelManager?.Draw(_shadowedEffect, _camera.View, _camera.Projection, _camera.Position, _lightViewProj, _shadowMapRT, null);
+                    }
+                    else
+                    {
+                        ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
+                    }
                 }
 
                 // Dibujar múltiples árboles a ambos lados del camino
