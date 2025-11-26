@@ -6,7 +6,6 @@ using Microsoft.Xna.Framework.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using static TGC.MonoGame.TP.ModelDrawingHelper;
 
 namespace TGC.MonoGame.TP;
 
@@ -93,8 +92,10 @@ public class TGCGame : Game
     private Color _selectedCarColor;
     private Model _selectedCarModel;
     private Model _racingCarModel;
+    private Model _racingCarDestroyedModel;
     private Model _f1CarModel;
     private Model _cybertruckModel;
+    private Model _cybertruckDestroyedModel;
     private Model _houseModel;
     private Model _plantModel;
     private Model _rockModel;
@@ -192,11 +193,6 @@ public class TGCGame : Game
     private SoundEffect _crashLateralSound;
     private SoundEffect _crashFrontalSound;
     private SoundEffect _gameOverSound;
-    #endregion
-
-    #region WheelsDetached
-    private WheelManager _wheelManager;
-    private bool _wheelsDetached = false;
     #endregion
 
     #endregion
@@ -377,10 +373,6 @@ public class TGCGame : Game
         // Estado del juego reiniciado a menu
         status = ST_PRESENTACION;
         _gameOver = false;
-
-        // --- RESET WHEELS STATE: important when restarting without recompiling ---
-        _wheelsDetached = false;
-        _wheelManager = new WheelManager();
     }
 
     private void DrawMenu(Texture2D menu)
@@ -771,7 +763,9 @@ public class TGCGame : Game
         _menuSelection = Content.Load<Texture2D>("Menus/menu_vehicle_selection");
         _menuStart = Content.Load<Texture2D>("Menus/menu_start");
         _racingCarModel = Content.Load<Model>(ContentFolder3D + "Cars/RacingCarA/RacingCar");
+        //_racingCarDestroyedModel = Content.Load<Model>(ContentFolder3D + "Cars/RacingCarA/RacingCarDestroyed");
         _cybertruckModel = Content.Load<Model>(ContentFolder3D + "Cars/Cybertruck/Cybertruck1");
+        _cybertruckDestroyedModel = Content.Load<Model>(ContentFolder3D + "Cars/Cybertruck/CyberTruckDestroyed");
         _f1CarModel = Content.Load<Model>(ContentFolder3D + "Cars/F1/F1");
         _treeModel = Content.Load<Model>(ContentFolder3D + "Tree/Tree");
         _houseModel = Content.Load<Model>(ContentFolder3D + "Houses/Cabin");
@@ -814,10 +808,6 @@ public class TGCGame : Game
         ModelDrawingHelper.AttachEffectToModel(_cowModel, _shadowMapEffect);
         ModelDrawingHelper.AttachEffectToModel(_deerModel, _shadowMapEffect);
         ModelDrawingHelper.AttachEffectToModel(_goatModel, _shadowMapEffect);
-        #endregion
-
-        #region WheelsDetached
-        _wheelManager = new WheelManager();
         #endregion
 
         #region Terrenos
@@ -1250,30 +1240,21 @@ public class TGCGame : Game
                 if (_health <= 0f || _fuel <= 0f && !_gameOver)
                 {
                     _gameOver = true;
+
+                    // Remplacer le modèle de voiture par la version détruite si applicable
+                    if (_selectedCarModel == _cybertruckModel && _cybertruckDestroyedModel != null)
+                    {
+                        _selectedCarModel = _cybertruckDestroyedModel;
+                    }
+                    else if (_selectedCarModel == _racingCarModel && _racingCarDestroyedModel != null)
+                    {
+                        _selectedCarModel = _racingCarDestroyedModel;
+                    }
+
                     MediaPlayer.Stop();
                     _gameOverSound?.Play();
                 }
                 break;
-        }
-        _wheelManager?.Update(deltaTime);
-        if (_gameOver && !_wheelsDetached)
-        {
-            // carForward : direction approximative du véhicule
-            var carForward = _carDirection;
-            // carSpeed : vitesse actuelle (peut influencer l'impulsion initiale)
-            var carSpeed = _carSpeed;
-
-            // Détache les roues du modèle sélectionné et crée les pièces physiques
-            _wheelManager?.DetachWheels(
-                _selectedCarModel,
-                _carWorld,
-                carForward,
-                carSpeed,
-                piecesPerCar: 1,   // nombre de morceaux par roue (ajuster)
-                lifeSeconds: 5f,   // durée de vie des pièces
-                outwardImpulse: 0.005f); // force d'expulsion initiale
-
-            _wheelsDetached = true;
         }
         _previousKeyboardState = keyboardState;
         _camera.Update(_carWorld, _carRotation);
@@ -1314,21 +1295,6 @@ public class TGCGame : Game
                 //                            Matrix.CreateRotationY(z * 0.01f) * // Rotación de los árboles
                 //                            Matrix.CreateTranslation(new Vector3(treeDistance, 0f, z));
                 //     ModelDrawingHelper.Draw(_treeModel, rightTreeWorld, _camera.View, _camera.Projection, Color.Green, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                if (_carVisibleDuringInvincibility)
-                {
-                    if (_wheelsDetached)
-                    {
-                        // Dessine la carrosserie en ignorant les meshes/parentbones correspondant aux roues
-                        var skip = _wheelManager?.GetDetachedMeshNames() ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        MeshDrawingHelper.DrawModelExcept(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT, skip);
-                        // Dessine les roues détachées
-                        _wheelManager?.Draw(_shadowedEffect, _camera.View, _camera.Projection, _camera.Position, _lightViewProj, _shadowMapRT, null);
-                    }
-                    else
-                    {
-                        ModelDrawingHelper.Draw(_selectedCarModel, _carWorld, _camera.View, _camera.Projection, _selectedCarColor, _shadowedEffect, _camera.Position, _lightViewProj, _shadowMapRT);
-                    }
-                }
 
                 //     // Árboles del lado izquierdo (X negativo)
                 //     Matrix leftTreeWorld = Matrix.CreateScale(15f + ((z + 50) % 100) / 15f) * // Variación de tamaño de los árboles
