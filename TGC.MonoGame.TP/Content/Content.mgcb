@@ -219,6 +219,25 @@
 /processorParam:TextureFormat=Compressed
 /build:Models/Cars/Cybertruck/Cybertruck1.fbx
 
+#begin Models/Cars/Cybertruck/CyberTruckDestroyed.fbx
+/importer:FbxImporter
+/processor:ModelProcessor
+/processorParam:ColorKeyColor=0,0,0,0
+/processorParam:ColorKeyEnabled=True
+/processorParam:DefaultEffect=BasicEffect
+/processorParam:GenerateMipmaps=True
+/processorParam:GenerateTangentFrames=False
+/processorParam:PremultiplyTextureAlpha=True
+/processorParam:PremultiplyVertexColors=True
+/processorParam:ResizeTexturesToPowerOfTwo=False
+/processorParam:RotationX=0
+/processorParam:RotationY=0
+/processorParam:RotationZ=0
+/processorParam:Scale=1
+/processorParam:SwapWindingOrder=False
+/processorParam:TextureFormat=Compressed
+/build:Models/Cars/Cybertruck/CyberTruckDestroyed.fbx
+
 #begin Models/Cars/F1/F1.fbx
 /importer:FbxImporter
 /processor:ModelProcessor
