@@ -28,8 +28,8 @@ namespace TGC.MonoGame.TP
         private readonly Matrix _initialRotation = Matrix.Identity; // Guardamos la rotación estática inicial
         private readonly Vector3 _scale;
 
-        // Bobbing vertical (petit translation haut/bas)
-        private const float BobAmplitude = 5.0f; // hauteur maximale du bob (en unités de monde)
+        // Vertical bobbing
+        private const float BobAmplitude = 5.0f; // max height of bobbing
 
         public Collectible(CollectibleType type, Vector3 position)
         {
