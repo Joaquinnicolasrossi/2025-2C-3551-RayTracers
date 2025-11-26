@@ -26,7 +26,7 @@ namespace TGC.MonoGame.TP
         internal static class MeshDrawingHelper
         {
             // Draw only one ModelMesh (useful for spare parts)
-            public static void DrawMesh(ModelMesh mesh, Matrix world, Matrix view, Matrix projection, Effect effect, Vector3 cameraPosition, Matrix lightViewProj, Texture2D shadowMap, Color? color = null)
+            public static void DrawMesh(ModelMesh mesh, Microsoft.Xna.Framework.Matrix world, Microsoft.Xna.Framework.Matrix view, Microsoft.Xna.Framework.Matrix projection, Effect effect, Microsoft.Xna.Framework.Vector3 cameraPosition, Microsoft.Xna.Framework.Matrix lightViewProj, Texture2D shadowMap, Microsoft.Xna.Framework.Color? color = null)
             {
                 effect.Parameters["View"]?.SetValue(view);
                 effect.Parameters["Projection"]?.SetValue(projection);
@@ -37,8 +37,8 @@ namespace TGC.MonoGame.TP
                 effect.Parameters["UseTexture"]?.SetValue(0f);
                 if (color.HasValue)
                     effect.Parameters["DiffuseColor"]?.SetValue(color.Value.ToVector3());
-                effect.Parameters["AmbientColor"]?.SetValue(new Vector3(0.2f));
-                effect.Parameters["SpecularColor"]?.SetValue(new Vector3(1));
+                effect.Parameters["AmbientColor"]?.SetValue(new Microsoft.Xna.Framework.Vector3(0.2f));
+                effect.Parameters["SpecularColor"]?.SetValue(new Microsoft.Xna.Framework.Vector3(1));
                 effect.Parameters["Shininess"]?.SetValue(32f);
 
                 foreach (var mp in mesh.MeshParts)
@@ -49,7 +49,7 @@ namespace TGC.MonoGame.TP
             }
 
             // Draws a Model without meshes in skipMeshNames
-            public static void DrawModelExcept(Model model, Matrix modelWorld, Matrix view, Matrix projection, Color color, Effect effect, Vector3 cameraPosition, Matrix lightViewProj, Texture2D shadowMap, HashSet<string> skipMeshNames)
+            public static void DrawModelExcept(Model model, Microsoft.Xna.Framework.Matrix modelWorld, Microsoft.Xna.Framework.Matrix view, Microsoft.Xna.Framework.Matrix projection, Microsoft.Xna.Framework.Color color, Effect effect, Microsoft.Xna.Framework.Vector3 cameraPosition, Microsoft.Xna.Framework.Matrix lightViewProj, Texture2D shadowMap, HashSet<string> skipMeshNames)
             {
                 effect.Parameters["View"]?.SetValue(view);
                 effect.Parameters["Projection"]?.SetValue(projection);
@@ -59,8 +59,8 @@ namespace TGC.MonoGame.TP
 
                 effect.Parameters["UseTexture"]?.SetValue(0f);
                 effect.Parameters["DiffuseColor"]?.SetValue(color.ToVector3());
-                effect.Parameters["AmbientColor"]?.SetValue(new Vector3(0.2f));
-                effect.Parameters["SpecularColor"]?.SetValue(new Vector3(1));
+                effect.Parameters["AmbientColor"]?.SetValue(new Microsoft.Xna.Framework.Vector3(0.2f));
+                effect.Parameters["SpecularColor"]?.SetValue(new Microsoft.Xna.Framework.Vector3(1));
                 effect.Parameters["Shininess"]?.SetValue(32f);
 
                 foreach (var mesh in model.Meshes)
